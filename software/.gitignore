@@ -1,0 +1,6 @@
+# Binary and other trash
+*.riscv
+*.dump
+
+# Editor stuff
+.vscode/
