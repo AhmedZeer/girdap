@@ -43,6 +43,6 @@ int main(void)
 	if (result != 4)
 		return 2;
 
-  printf("Selam!\n");
+	printf("Selam!\n");
 	return 0;
 }
