@@ -90,6 +90,59 @@ class AccumulatorExampleModuleImp(outer: AccumulatorExample)(implicit p: Paramet
   io.mem.req.bits.no_resp := false.B
 }
 
+class BFloat16Exp extends Module {
+  val io = IO(new Bundle {
+    val in = Input(UInt(16.W))
+    val out = Output(UInt(16.W))
+  })
+
+  val sign = io.in(15)
+  val exponent = io.in(14, 7)
+
+  // If subnormal, fill with zeroes.
+  // else append 1 to the mantissa
+  val mantissa = Mux(exponent === 0.U, 0.U(8.W), Cat(1.U, io.in(6, 0)))
+
+  // Convert log2e to a fixed-point
+  // representation : UQ2.8
+  // Unsigined fixed-point with 2 bits for integer and 8 for fraction.
+  val log2e_scaled = 369.U(10.W)
+
+  // Mantissa : UQ1.7
+  // log2e    : UQ2.8
+  // Mantissa * log2e : UQ3.15
+  val scaled_mantissa = mantissa * log2e_scaled
+
+  // Padded Mantissa : UQ9.16
+  // We are adding more precision.
+  val padded_mantissa = Cat(scaled_mantissa, 0.U(7.W))
+
+  // Considering the biggest number representable
+  // by BFloat16 we get : 3.39 x 10^38
+  // So maximum exponentiation result is :
+  // e^x = 3.39 x 10^38
+  // Solving for x, we get x ~ 88.72
+  // BFloat(x) = sign(0), exp(133), mantissa(??)
+  // RESULT : the exp of our input can be 133 at maximum.
+  val shift = 133.U - exponent
+
+  // Shifted Mantissa : UQ9.16
+  val shifted_mantissa = padded_mantissa >> shift
+  val signed_mantissa = Mux(sign === 0.U(1.W), shifted_mantissa, ~shifted_mantissa)
+
+  // 16 bits for fraction
+  val x_frac = signed_mantissa(15, 0)
+  // 9 bits for integer
+  val x_int = signed_mantissa(24, 16)
+  val biased_exp = x_int + 127.U
+
+  // val final_exp = Mux(sign, biased_exp(7, 0), ~biased_exp(7,0))
+  val final_exp = biased_exp(7, 0)
+  val final_mantissa = x_frac(15, 9)
+
+  io.out := Cat(0.U(1.W), final_exp, final_mantissa)
+}
+
 class VEXPCmd(XLen:Int) extends Bundle {
   val rd = UInt(5.W)
   val rs1 = UInt(XLen.W)
@@ -132,18 +185,16 @@ class VEXPCore(XLen: Int) extends Module {
 
   when(state === s_proc){
 
+
     val bfloat16Inputs = rs1.asTypeOf(Vec(4, UInt(16.W)))
     val out = Wire(Vec(4, UInt(16.W)))
+    val vexpBfloat16 = Seq.fill(4)(Module(new BFloat16Exp))
 
     for(i <- 0 until 4){
-      val sign = bfloat16Inputs(i)(15) // sign
-      val exp = bfloat16Inputs(i)(14, 7) // exp
-      val mantissa = bfloat16Inputs(i)(6, 0) // mantissa
-
-      // Operations
-      val nextExp = exp + 1.U // mul by 2
-
-      out(i) := Cat(sign, nextExp, mantissa)
+      vexpBfloat16(i).io.in := bfloat16Inputs(i)
+      out(i) := vexpBfloat16(i).io.out
+      printf(p"[VEXP HW] BFloat16 Input  : ${Hexadecimal(bfloat16Inputs(i))}.\n")
+      printf(p"[VEXP HW] BFloat16 Output : ${Hexadecimal(out(i))}.\n\n")
     }
 
     res := out.asUInt

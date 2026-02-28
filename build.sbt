@@ -18,8 +18,7 @@ lazy val root = (project in file("."))
       "org.chipsalliance" %% s"hardfloat-$chiselVersion" % rocketVersion,
       "org.chipsalliance" %% "macros" % rocketVersion,
       "org.chipsalliance" %% s"rocketchip-$chiselVersion" % rocketVersion,
-      "ch.epfl.scala" %% "bloop-config" % "2.0.3"
-
+      "ch.epfl.scala" %% "bloop-config" % "2.0.3",
       "edu.berkeley.cs" %% "chiseltest" % "6.0.0" % Test,
       "org.scalatest" %% "scalatest" % "3.2.16" % Test
     ),
@@ -35,5 +34,5 @@ lazy val root = (project in file("."))
     Resolver.sonatypeRepo("snapshots"),
     Resolver.sonatypeRepo("releases"),
     Resolver.mavenLocal
-)
+  )
 )
