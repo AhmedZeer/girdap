@@ -136,10 +136,38 @@ class BFloat16Exp extends Module {
   val x_int = signed_mantissa(24, 16)
   val biased_exp = x_int + 127.U
 
-  // val final_exp = Mux(sign, biased_exp(7, 0), ~biased_exp(7,0))
+  // UQ8.0
   val final_exp = biased_exp(7, 0)
-  val final_mantissa = x_frac(15, 9)
 
+  // UQ0.7
+  val mantissa_frac = x_frac(15, 9)
+  val not_mantissa_frac = (~mantissa_frac).asUInt
+
+  // alpha   * 2^7 = 0.21875  * 128  = 28
+  // beta    * 2^7 = 0.4375   * 128  = 56
+  // gamma_1 * 2^7 = 3.296875 * 128  = 422
+  // gamma_2 * 2^7 = 2.171875 * 128  = 278
+
+  // When mantissa belongs to [0, 0.5)
+  val alpha = 28.U(7.W)      // UQ0.7
+  val gamma_1 = 422.U(9.W)   // UQ2.7
+
+  // UQ3.21
+  // `+&` carry add operation to increase the
+  // integer bitwidth.
+  val p_1 = (mantissa_frac +& gamma_1) * alpha * mantissa_frac
+
+  // When mantissa belongs to [0.5, 1)
+  val beta = 56.U(7.W)      // UQ0.7
+  val gamma_2 = 278.U(9.W)  // UQ2.7
+
+  // UQ3.21
+  val p_2 = (mantissa_frac +& gamma_2) * beta * not_mantissa_frac
+
+  val isFirstPoly = mantissa_frac(6) === 1.U(1.W)
+
+  // Extract the fraction parts from p_1 & p_2 (20, 0)
+  val final_mantissa = Mux(isFirstPoly, p_1(20, 14), ~(p_2(20, 14)))
   io.out := Cat(0.U(1.W), final_exp, final_mantissa)
 }
 
