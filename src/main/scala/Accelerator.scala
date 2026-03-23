@@ -19,8 +19,8 @@ class WithToyRoCC extends Config((site, here, up) => {
     (p: Parameters) => {
       val sa = LazyModule(new SystolicArrayRoCC(
         precision = 16,
-        nRows = 8,
-        nCols = 8,
+        nRows = 2,
+        nCols = 2,
         maxK = 64,
         opcodes = OpcodeSet.custom1,
       )(p))

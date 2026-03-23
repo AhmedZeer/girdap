@@ -9,8 +9,6 @@
 
 #define SA_ROWS 2
 #define SA_COLS 2
-#define SA_MAX_K 64
-
 #define MAX_M 8
 #define MAX_N 8
 #define MAX_K 80
@@ -67,8 +65,8 @@ static int hw_gemm_u16_tiled(
     const uint16_t B[MAX_K][MAX_N],
     uint32_t C[MAX_M][MAX_N],
     int M, int N, int K) {
-  static uint64_t a_stream[SA_MAX_K] __attribute__((aligned(64)));
-  static uint64_t b_stream[SA_MAX_K] __attribute__((aligned(64)));
+  static uint64_t a_stream[MAX_K] __attribute__((aligned(64)));
+  static uint64_t b_stream[MAX_K] __attribute__((aligned(64)));
   static uint64_t c_words[SA_ROWS * SA_COLS] __attribute__((aligned(64)));
 
   for (int i = 0; i < M; i++) {
@@ -79,32 +77,19 @@ static int hw_gemm_u16_tiled(
 
   for (int m0 = 0; m0 < M; m0 += SA_ROWS) {
     for (int n0 = 0; n0 < N; n0 += SA_COLS) {
-      uint32_t tile_acc[SA_ROWS * SA_COLS] = {0, 0, 0, 0};
+      for (int kk = 0; kk < K; kk++) {
+        uint16_t a0 = (m0 + 0 < M) ? A[m0 + 0][kk] : 0;
+        uint16_t a1 = (m0 + 1 < M) ? A[m0 + 1][kk] : 0;
+        uint16_t b0 = (n0 + 0 < N) ? B[kk][n0 + 0] : 0;
+        uint16_t b1 = (n0 + 1 < N) ? B[kk][n0 + 1] : 0;
+        a_stream[kk] = pack2_u16(a0, a1);
+        b_stream[kk] = pack2_u16(b0, b1);
+      }
 
-      for (int k0 = 0; k0 < K; k0 += SA_MAX_K) {
-        int k_chunk = K - k0;
-        if (k_chunk > SA_MAX_K) {
-          k_chunk = SA_MAX_K;
-        }
-
-        for (int kk = 0; kk < k_chunk; kk++) {
-          uint16_t a0 = (m0 + 0 < M) ? A[m0 + 0][k0 + kk] : 0;
-          uint16_t a1 = (m0 + 1 < M) ? A[m0 + 1][k0 + kk] : 0;
-          uint16_t b0 = (n0 + 0 < N) ? B[k0 + kk][n0 + 0] : 0;
-          uint16_t b1 = (n0 + 1 < N) ? B[k0 + kk][n0 + 1] : 0;
-          a_stream[kk] = pack2_u16(a0, a1);
-          b_stream[kk] = pack2_u16(b0, b1);
-        }
-
-        uint64_t cfg_rc = sa_config(a_stream, b_stream);
-        uint64_t run_rc = sa_run(c_words, (uint64_t)k_chunk);
-        if (cfg_rc != 0 || run_rc != 0) {
-          return -1;
-        }
-
-        for (int idx = 0; idx < SA_ROWS * SA_COLS; idx++) {
-          tile_acc[idx] += (uint32_t)c_words[idx];
-        }
+      uint64_t cfg_rc = sa_config(a_stream, b_stream);
+      uint64_t run_rc = sa_run(c_words, (uint64_t)K);
+      if (cfg_rc != 0 || run_rc != 0) {
+        return -1;
       }
 
       for (int i = 0; i < SA_ROWS; i++) {
@@ -112,7 +97,7 @@ static int hw_gemm_u16_tiled(
           int m = m0 + i;
           int n = n0 + j;
           if (m < M && n < N) {
-            C[m][n] = tile_acc[i * SA_COLS + j];
+            C[m][n] = (uint32_t)c_words[i * SA_COLS + j];
           }
         }
       }

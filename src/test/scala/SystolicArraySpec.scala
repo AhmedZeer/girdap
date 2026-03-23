@@ -56,9 +56,11 @@ class SystolicArraySpec extends AnyFunSpec with ChiselScalatestTester {
         dut.io.in_top(0).poke(0.U); dut.io.in_top(1).poke(0.U)
         dut.io.cmdValid.poke(false.B)
         dut.io.k.poke(0.U)
+        dut.io.clearOnStart.poke(true.B)
         dut.clock.step(1)
 
         dut.io.k.poke(k.U)
+        dut.io.clearOnStart.poke(true.B)
         dut.io.cmdValid.poke(true.B)
         dut.clock.step(1)
         dut.io.cmdValid.poke(false.B)
@@ -130,6 +132,7 @@ class SystolicArraySpec extends AnyFunSpec with ChiselScalatestTester {
         dut.io.in_top(0).poke(0.U); dut.io.in_top(1).poke(0.U)
         dut.io.cmdValid.poke(false.B)
         dut.io.k.poke(0.U)
+        dut.io.cmdClear.poke(true.B)
         dut.clock.step(1)
 
         while (!dut.io.cmdReady.peek().litToBoolean) {
@@ -137,6 +140,7 @@ class SystolicArraySpec extends AnyFunSpec with ChiselScalatestTester {
         }
 
         dut.io.k.poke(k.U)
+        dut.io.cmdClear.poke(true.B)
         dut.io.cmdValid.poke(true.B)
         dut.clock.step(1)
         dut.io.cmdValid.poke(false.B)
@@ -163,6 +167,79 @@ class SystolicArraySpec extends AnyFunSpec with ChiselScalatestTester {
           waited += 1
         }
         assert(waited < 64, "core did not assert done within timeout")
+
+        dut.io.out(0)(0).expect(58.U)
+        dut.io.out(0)(1).expect(64.U)
+        dut.io.out(1)(0).expect(139.U)
+        dut.io.out(1)(1).expect(154.U)
+      }
+    }
+
+    it("accumulates across chunked runs when cmdClear is deasserted") {
+      test(new SystolicArrayCore(precision = 16, nRows = 2, nCols = 2, maxK = 8)) { dut =>
+        def launchRun(k: Int, clear: Boolean, left: Seq[(Int, Int)], top: Seq[(Int, Int)]): Unit = {
+          while (!dut.io.cmdReady.peek().litToBoolean) {
+            dut.clock.step(1)
+          }
+
+          dut.io.k.poke(k.U)
+          dut.io.cmdClear.poke(clear.B)
+          dut.io.cmdValid.poke(true.B)
+          dut.clock.step(1)
+          dut.io.cmdValid.poke(false.B)
+
+          for (idx <- 0 until k) {
+            while (!dut.io.inReady.peek().litToBoolean) {
+              dut.clock.step(1)
+            }
+            dut.io.in_left(0).poke(left(idx)._1.U)
+            dut.io.in_left(1).poke(left(idx)._2.U)
+            dut.io.in_top(0).poke(top(idx)._1.U)
+            dut.io.in_top(1).poke(top(idx)._2.U)
+            dut.io.inValid.poke(true.B)
+            dut.clock.step(1)
+          }
+
+          dut.io.inValid.poke(false.B)
+          dut.io.in_left(0).poke(0.U); dut.io.in_left(1).poke(0.U)
+          dut.io.in_top(0).poke(0.U); dut.io.in_top(1).poke(0.U)
+
+          var waited = 0
+          while (!dut.io.done.peek().litToBoolean && waited < 64) {
+            dut.clock.step(1)
+            waited += 1
+          }
+          assert(waited < 64, "core did not assert done within timeout")
+        }
+
+        dut.io.inValid.poke(false.B)
+        dut.io.in_left(0).poke(0.U); dut.io.in_left(1).poke(0.U)
+        dut.io.in_top(0).poke(0.U); dut.io.in_top(1).poke(0.U)
+        dut.io.cmdValid.poke(false.B)
+        dut.io.k.poke(0.U)
+        dut.io.cmdClear.poke(true.B)
+        dut.clock.step(1)
+
+        // Chunk 0 (K=2), clears accumulators.
+        launchRun(
+          k = 2,
+          clear = true,
+          left = Seq((1, 4), (2, 5)),
+          top = Seq((7, 8), (9, 10))
+        )
+
+        dut.io.out(0)(0).expect(25.U)
+        dut.io.out(0)(1).expect(28.U)
+        dut.io.out(1)(0).expect(73.U)
+        dut.io.out(1)(1).expect(82.U)
+
+        // Chunk 1 (K=1), no clear -> accumulates.
+        launchRun(
+          k = 1,
+          clear = false,
+          left = Seq((3, 6)),
+          top = Seq((11, 12))
+        )
 
         dut.io.out(0)(0).expect(58.U)
         dut.io.out(0)(1).expect(64.U)

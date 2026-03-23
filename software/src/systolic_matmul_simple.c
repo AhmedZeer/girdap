@@ -35,20 +35,12 @@ static inline uint64_t sa_run(uint64_t *c_words, uint64_t k) {
 }
 
 int main(void) {
-  // 2x5 times 5x2 -> 2x2 output tile
-  enum { K = 5 };
+  // 2xK times Kx2 -> 2x2 output tile.
+  // Choose K > maxK (default 64) to exercise hardware-side chunking.
+  enum { K = 70 };
 
-  static const uint16_t A[SA_ROWS][K] = {
-    {1, 2, 3, 4, 5},
-    {6, 7, 8, 9, 10}
-  };
-  static const uint16_t B[K][SA_COLS] = {
-    {1, 2},
-    {3, 4},
-    {5, 6},
-    {7, 8},
-    {9, 10}
-  };
+  static uint16_t A[SA_ROWS][K];
+  static uint16_t B[K][SA_COLS];
 
   uint32_t sw[SA_ROWS][SA_COLS] = {{0}};
   uint32_t hw[SA_ROWS][SA_COLS] = {{0}};
@@ -56,6 +48,17 @@ int main(void) {
   static uint64_t a_stream[K] __attribute__((aligned(64)));
   static uint64_t b_stream[K] __attribute__((aligned(64)));
   static uint64_t c_words[SA_ROWS * SA_COLS] __attribute__((aligned(64)));
+
+  for (int i = 0; i < SA_ROWS; i++) {
+    for (int k = 0; k < K; k++) {
+      A[i][k] = (uint16_t)(((i + 1) * 3 + k) & 0xF);
+    }
+  }
+  for (int k = 0; k < K; k++) {
+    for (int j = 0; j < SA_COLS; j++) {
+      B[k][j] = (uint16_t)(((j + 1) * 5 + 2 * k) & 0xF);
+    }
+  }
 
   for (int k = 0; k < K; k++) {
     a_stream[k] = pack2_u16(A[0][k], A[1][k]);
@@ -86,6 +89,7 @@ int main(void) {
   }
 
   printf("=== Systolic GEMM Simple Test ===\n");
+  printf("Dims: (%d x %d) * (%d x %d) -> (%d x %d)\n", SA_ROWS, K, K, SA_COLS, SA_ROWS, SA_COLS);
   printf("Config rc: %lu, Run rc: %lu\n", (unsigned long)cfg_rc, (unsigned long)run_rc);
   printf("SW cycles: %lu, HW cycles: %lu\n", (unsigned long)sw_cycles, (unsigned long)hw_cycles);
 

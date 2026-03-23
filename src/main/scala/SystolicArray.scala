@@ -127,6 +127,7 @@ class Controller(
     val cmdValid = Input(Bool())
     val cmdReady = Output(Bool())
     val k = Input(UInt(kWidth.W))
+    val clearOnStart = Input(Bool())
 
     // Load one k-slice per cycle while loading.
     val inValid = Input(Bool())
@@ -154,6 +155,7 @@ class Controller(
   val kReg = RegInit(0.U(kWidth.W))
   val loadCount = RegInit(0.U(kWidth.W))
   val tCount = RegInit(0.U(tWidth.W))
+  val clearThisRun = RegInit(true.B)
 
   val totalCycles = Wire(UInt(tWidth.W))
   totalCycles := kReg + (nRows + nCols - 2).U
@@ -192,7 +194,12 @@ class Controller(
         kReg := io.k
         loadCount := 0.U
         tCount := 0.U
-        state := Mux(io.k === 0.U, sDone, sLoad)
+        clearThisRun := io.clearOnStart
+        when(io.k === 0.U) {
+          state := Mux(io.clearOnStart, sClear, sDone)
+        }.otherwise {
+          state := sLoad
+        }
       }
     }
 
@@ -201,14 +208,14 @@ class Controller(
         val nextLoadCount = loadCount + 1.U
         loadCount := nextLoadCount
         when(nextLoadCount === kReg) {
-          state := sClear
+          state := Mux(clearThisRun, sClear, sStream)
         }
       }
     }
 
     is(sClear) {
       tCount := 0.U
-      state := sStream
+      state := Mux(kReg === 0.U, sDone, sStream)
     }
 
     is(sStream) {
@@ -249,6 +256,7 @@ class SystolicArrayCore(
     val cmdValid = Input(Bool())
     val cmdReady = Output(Bool())
     val k = Input(UInt(kWidth.W))
+    val cmdClear = Input(Bool())
 
     // K-slice load interface.
     val inValid = Input(Bool())
@@ -268,6 +276,7 @@ class SystolicArrayCore(
   controller.io.cmdValid := io.cmdValid
   io.cmdReady := controller.io.cmdReady
   controller.io.k := io.k
+  controller.io.clearOnStart := io.cmdClear
 
   controller.io.inValid := io.inValid
   io.inReady := controller.io.inReady
@@ -292,19 +301,35 @@ class SystolicArrayImpl(
 
   val cacheParams = tileParams.dcache.get
 
+  // Input Precision ( 16 Bits )
   private val precision = outer.precision
+  // Mesh Size ( 2x2 )
   private val nRows = outer.nRows
   private val nCols = outer.nCols
+  // Common Dimension ( MxK @ KxN, 2x8 @ 8x2 )
   private val maxK = outer.maxK
+  // Common Dimension Size ( 4 Bits )
   private val kWidth = log2Ceil(maxK + 1)
+  // Result precision ( 32 Bits )
   private val accumPrec = precision * 2
+  // Output Size ( 2x8 @ 8x2 = 2x2 )
   private val outCount = nRows * nCols
+  // Which output we are writing to? ( 000 - 3 Bits )
   private val outIdxWidth = log2Ceil(outCount + 1)
+  // What is the system word size in terms of bytes
+  // ( 64 Bits / 8 Bits = 8 Bytes )
   private val xlenBytes = xLen / 8
+  // Which byte are we addressing ? ( 000 - 3 Bits )
   private val lgXlenBytes = log2Ceil(xlenBytes)
+  // How much large the Cache is int terms of bytes ?
+  // ( 128 Bits / 8 Bits = 16 Bytes )
   private val beatBytes = cacheDataBits / 8
+  // How many words we get pear burst?
+  // ( 16 Bytes / 8 Bytes = 2 )
   private val wordsPerBeat = beatBytes / xlenBytes
+  // How many bytes we need to process at a time?
   private val laneWidth = math.max(1, log2Ceil(wordsPerBeat))
+  // Which byte are processing from the beat?
   private val beatOffsetBits = log2Ceil(beatBytes)
 
   require(isPow2(xlenBytes), s"xLen bytes must be a power of two, got ${xlenBytes}")
@@ -333,7 +358,10 @@ class SystolicArrayImpl(
   val leftVec = Wire(Vec(nRows, UInt(precision.W)))
   val topVec = Wire(Vec(nCols, UInt(precision.W)))
 
-  val s_idle :: s_core_start :: s_req_left :: s_wait_left :: s_req_top :: s_wait_top :: s_feed_core :: s_wait_core_done :: s_req_put :: s_wait_put :: s_resp :: Nil = Enum(11)
+  // s_idle -> I can take commands.
+  // s_prep_chunk -> Configuring the accelerator
+  //                 *A, *B, *C, M, N, K, ldA, ldB, ldC
+  val s_idle :: s_prep_chunk :: s_core_start :: s_req_left :: s_wait_left :: s_req_top :: s_wait_top :: s_feed_core :: s_wait_core_done :: s_req_put :: s_wait_put :: s_resp :: Nil = Enum(12)
   val state = RegInit(s_idle)
 
   val aBase = RegInit(0.U(xLen.W))
@@ -342,8 +370,12 @@ class SystolicArrayImpl(
   val configured = RegInit(false.B)
 
   val kReg = RegInit(0.U(kWidth.W))
+  val kRemaining = RegInit(0.U(xLen.W))
+  val kBaseIdx = RegInit(0.U(xLen.W))
   val loadIdx = RegInit(0.U(kWidth.W))
+  val loadBaseIdx = RegInit(0.U(xLen.W))
   val outIdx = RegInit(0.U(outIdxWidth.W))
+  val chunkClear = RegInit(true.B)
 
   val leftWord = RegInit(0.U(xLen.W))
   val topWord = RegInit(0.U(xLen.W))
@@ -360,14 +392,16 @@ class SystolicArrayImpl(
 
   core.io.cmdValid := false.B
   core.io.k := kReg
+  core.io.cmdClear := chunkClear
   core.io.inValid := false.B
   core.io.in_left := 0.U.asTypeOf(core.io.in_left)
   core.io.in_top := 0.U.asTypeOf(core.io.in_top)
 
   val (tlOut, edgesOut) = outer.atlNode.out(0)
 
-  val leftAddr = aBase + loadIdx * xlenBytes.U
-  val topAddr = bBase + loadIdx * xlenBytes.U
+  val absLoadIdx = loadBaseIdx + loadIdx
+  val leftAddr = aBase + absLoadIdx * xlenBytes.U
+  val topAddr = bBase + absLoadIdx * xlenBytes.U
   val writeAddr = cBase + outIdx * xlenBytes.U
   val leftLane = if (wordsPerBeat > 1) leftAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
   val topLane = if (wordsPerBeat > 1) topAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
@@ -418,15 +452,20 @@ class SystolicArrayImpl(
       bBase := io.cmd.bits.rs2
       configured := true.B
       respData := 0.U
+      // Jump to the start and expect funct = 1
       state := s_resp
     }.elsewhen(funct === 1.U) {
-      // funct=1: run one output tile (rs1=C output base, rs2=K)
+      // funct=1: run one output tile (rs1=C output base, rs2=total K; chunked in hardware)
       cBase := io.cmd.bits.rs1
-      kReg := io.cmd.bits.rs2(kWidth - 1, 0)
+      kRemaining := io.cmd.bits.rs2
+      kBaseIdx := 0.U
+      loadBaseIdx := 0.U
       loadIdx := 0.U
       outIdx := 0.U
+      chunkClear := true.B
       respData := Mux(configured, 0.U, 1.U)
-      state := Mux(configured, s_core_start, s_resp)
+      // If we did not do funct = 0 before jump back to idle
+      state := Mux(configured, s_prep_chunk, s_resp)
     }.elsewhen(funct === 2.U) {
       // funct=2: status query
       respData := Cat(0.U((xLen - 2).W), core.io.busy, core.io.done)
@@ -434,6 +473,26 @@ class SystolicArrayImpl(
     }.otherwise {
       respData := "hDEAD".U
       state := s_resp
+    }
+  }
+
+  when(state === s_prep_chunk) {
+    when(kRemaining === 0.U) {
+      when(chunkClear) {
+        kReg := 0.U
+        loadIdx := 0.U
+        loadBaseIdx := 0.U
+        state := s_core_start
+      }.otherwise {
+        outIdx := 0.U
+        state := s_req_put
+      }
+    }.otherwise {
+      val chunkSize = Mux(kRemaining > maxK.U, maxK.U, kRemaining)
+      kReg := chunkSize(kWidth - 1, 0)
+      loadIdx := 0.U
+      loadBaseIdx := kBaseIdx
+      state := s_core_start
     }
   }
 
@@ -494,8 +553,16 @@ class SystolicArrayImpl(
 
   when(state === s_wait_core_done) {
     when(core.io.done) {
-      outIdx := 0.U
-      state := s_req_put
+      val remAfter = kRemaining - kReg
+      kRemaining := remAfter
+      kBaseIdx := kBaseIdx + kReg
+      chunkClear := false.B
+      when(remAfter === 0.U) {
+        outIdx := 0.U
+        state := s_req_put
+      }.otherwise {
+        state := s_prep_chunk
+      }
     }
   }
 
