@@ -281,16 +281,3 @@ class OnlineSoftmax(
     Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1("OnlineSoftmaxRoCC"))))
   )
 }
-
-class WithToyRoCC extends Config((site, here, up) => {
-  case BuildRoCC => List(
-    (p: Parameters) => {
-      val expAccum = LazyModule(new OnlineSoftmax(
-        intPrecision = 32,
-        fracPrecision = 32,
-        opcodes = OpcodeSet.custom0
-      )(p))
-      expAccum
-    }
-  )
-})

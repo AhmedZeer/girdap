@@ -1,0 +1,7 @@
+=== Systolic GEMM Random Test ===
+CSV_HEADER,case,M,N,K,sw_cycles,hw_cycles,mismatches
+CSV_DATA,0,3,4,5,899,2240,0
+CSV_DATA,1,5,3,7,1321,3579,0
+CSV_DATA,2,6,6,17,6790,10104,0
+CSV_DATA,3,7,5,33,12214,21697,0
+CSV_DATA,4,8,8,70,45914,60328,0

@@ -1,0 +1,541 @@
+package toyrocc
+import chisel3._
+import chisel3.util._
+
+import freechips.rocketchip.tile._
+import freechips.rocketchip.rocket._
+import freechips.rocketchip.tilelink.{TLClientNode, TLMasterParameters, TLMasterPortParameters}
+import org.chipsalliance.cde.config.Parameters
+
+/*
+import scala.math.BigDecimal.RoundingMode
+*/
+
+// Ouptut Stationary Processing Element
+class ProcessingElement(inPrec: Int = 16, accumPrec: Int = 32) extends Module {
+  val io = IO(new Bundle {
+    // Signals
+    val clear = Input(Bool())
+    val inValid = Input(Bool())
+    val outValid = Output(Bool())
+
+    // InData
+    val left = Input(UInt(inPrec.W))
+    val top  = Input(UInt(inPrec.W))
+
+    // OutData
+    val right  = Output(UInt(inPrec.W))
+    val down   = Output(UInt(inPrec.W))
+    val result = Output(UInt(accumPrec.W))
+  })
+
+  val accum = RegInit(0.U(accumPrec.W))
+  val down  = RegInit(0.U(inPrec.W))
+  val right = RegInit(0.U(inPrec.W))
+  val v = RegInit(false.B)
+
+  val mul = io.top * io.left
+  val nextAccum = mul + accum
+
+  when(io.clear){
+    accum := 0.U
+    v := false.B
+  }.otherwise{
+    v := io.inValid
+    when(io.inValid) {
+      accum := nextAccum
+    }
+  }
+
+  down := io.top
+  right := io.left
+
+  io.right := right
+  io.down := down
+  io.result := accum
+
+  io.outValid := v
+}
+
+// Output Stationary Mesh
+class Mesh(precision: Int = 16, nRows: Int = 2, nCols: Int = 2) extends Module {
+  val io = IO(new Bundle {
+    val left = Input(Vec(nRows, UInt(precision.W)))
+    val top = Input(Vec(nCols, UInt(precision.W)))
+    val inValid = Input(Bool())
+    val clear = Input(Bool())
+
+    val out = Output(Vec(nRows, Vec(nCols, UInt((2*precision).W))))
+  })
+  val PEs = Seq.fill(nRows)(
+    Seq.fill(nCols)(Module(new ProcessingElement(inPrec = precision, accumPrec = precision * 2)))
+  )
+
+  // Corner
+  PEs(0)(0).io.left := io.left(0)
+  PEs(0)(0).io.top := io.top(0)
+  PEs(0)(0).io.inValid := io.inValid
+
+  // Left Edge
+  for(i <- 1 until nRows){
+    PEs(i)(0).io.left := io.left(i)
+    PEs(i)(0).io.top := PEs(i-1)(0).io.down
+    PEs(i)(0).io.inValid := PEs(i-1)(0).io.outValid
+  }
+
+  // Top Edge
+  for(j <- 1 until nCols){
+    PEs(0)(j).io.top := io.top(j)
+    PEs(0)(j).io.left := PEs(0)(j-1).io.right
+    PEs(0)(j).io.inValid := PEs(0)(j-1).io.outValid
+  }
+
+  // Only inner ones
+  for(i <- 1 until nRows){
+    for(j <- 1 until nCols){
+      PEs(i)(j).io.top := PEs(i-1)(j).io.down
+      PEs(i)(j).io.left := PEs(i)(j-1).io.right
+      PEs(i)(j).io.inValid := PEs(i)(j-1).io.outValid && PEs(i-1)(j).io.outValid
+    }
+  }
+
+  // All the PEs
+  for(i <- 0 until nRows) {
+    for (j <- 0 until nCols) {
+      PEs(i)(j).io.clear := io.clear
+      io.out(i)(j) := PEs(i)(j).io.result
+    }
+  }
+}
+
+class Controller(
+  precision: Int = 16,
+  nRows: Int = 2,
+  nCols: Int = 2,
+  maxK: Int = 64
+) extends Module {
+  require(nRows > 0, "nRows must be > 0")
+  require(nCols > 0, "nCols must be > 0")
+  require(maxK > 0, "maxK must be > 0")
+
+  private val kWidth = log2Ceil(maxK + 1)
+  private val tWidth = log2Ceil(maxK + nRows + nCols + 1)
+  private val queueDepth = maxK + math.max(nRows, nCols)
+
+  val io = IO(new Bundle {
+    // Command/control.
+    val cmdValid = Input(Bool())
+    val cmdReady = Output(Bool())
+    val k = Input(UInt(kWidth.W))
+
+    // Load one k-slice per cycle while loading.
+    val inValid = Input(Bool())
+    val inReady = Output(Bool())
+    val in_left = Input(Vec(nRows, UInt(precision.W)))
+    val in_top = Input(Vec(nCols, UInt(precision.W)))
+
+    // Streamed outputs to mesh edges.
+    val out_left = Output(Vec(nRows, UInt(precision.W)))
+    val out_top = Output(Vec(nCols, UInt(precision.W)))
+    val outValid = Output(Bool())
+    val clear = Output(Bool())
+
+    // Status.
+    val busy = Output(Bool())
+    val done = Output(Bool())
+  })
+
+  val leftQ = Seq.fill(nRows)(Module(new Queue(UInt(precision.W), queueDepth)))
+  val topQ = Seq.fill(nCols)(Module(new Queue(UInt(precision.W), queueDepth)))
+
+  val sIdle :: sLoad :: sClear :: sStream :: sDone :: Nil = Enum(5)
+  val state = RegInit(sIdle)
+
+  val kReg = RegInit(0.U(kWidth.W))
+  val loadCount = RegInit(0.U(kWidth.W))
+  val tCount = RegInit(0.U(tWidth.W))
+
+  val totalCycles = Wire(UInt(tWidth.W))
+  totalCycles := kReg + (nRows + nCols - 2).U
+
+  val allLeftEnqReady = leftQ.map(_.io.enq.ready).reduce(_ && _)
+  val allTopEnqReady = topQ.map(_.io.enq.ready).reduce(_ && _)
+  val canLoad = allLeftEnqReady && allTopEnqReady
+  val doLoad = (state === sLoad) && io.inValid && canLoad
+
+  io.cmdReady := (state === sIdle)
+  io.inReady := (state === sLoad) && canLoad
+  io.clear := (state === sClear)
+  io.outValid := (state === sStream) && (tCount < kReg)
+  io.busy := (state =/= sIdle)
+  io.done := (state === sDone)
+
+  for (i <- 0 until nRows) {
+    leftQ(i).io.enq.valid := doLoad
+    leftQ(i).io.enq.bits := io.in_left(i)
+
+    leftQ(i).io.deq.ready := false.B
+    io.out_left(i) := 0.U
+  }
+
+  for (j <- 0 until nCols) {
+    topQ(j).io.enq.valid := doLoad
+    topQ(j).io.enq.bits := io.in_top(j)
+
+    topQ(j).io.deq.ready := false.B
+    io.out_top(j) := 0.U
+  }
+
+  switch(state) {
+    is(sIdle) {
+      when(io.cmdValid) {
+        kReg := io.k
+        loadCount := 0.U
+        tCount := 0.U
+        state := Mux(io.k === 0.U, sDone, sLoad)
+      }
+    }
+
+    is(sLoad) {
+      when(doLoad) {
+        val nextLoadCount = loadCount + 1.U
+        loadCount := nextLoadCount
+        when(nextLoadCount === kReg) {
+          state := sClear
+        }
+      }
+    }
+
+    is(sClear) {
+      tCount := 0.U
+      state := sStream
+    }
+
+    is(sStream) {
+      for (i <- 0 until nRows) {
+        val active = (tCount >= i.U) && (tCount < (kReg + i.U))
+        leftQ(i).io.deq.ready := active
+        io.out_left(i) := Mux(active && leftQ(i).io.deq.valid, leftQ(i).io.deq.bits, 0.U)
+      }
+      for (j <- 0 until nCols) {
+        val active = (tCount >= j.U) && (tCount < (kReg + j.U))
+        topQ(j).io.deq.ready := active
+        io.out_top(j) := Mux(active && topQ(j).io.deq.valid, topQ(j).io.deq.bits, 0.U)
+      }
+
+      when((tCount + 1.U) >= totalCycles) {
+        state := sDone
+      }.otherwise {
+        tCount := tCount + 1.U
+      }
+    }
+
+    is(sDone) {
+      state := sIdle
+    }
+  }
+}
+
+class SystolicArrayCore(
+  precision: Int = 16,
+  nRows: Int = 2,
+  nCols: Int = 2,
+  maxK: Int = 64
+) extends Module {
+  private val kWidth = log2Ceil(maxK + 1)
+
+  val io = IO(new Bundle {
+    // Command/control for one tile run.
+    val cmdValid = Input(Bool())
+    val cmdReady = Output(Bool())
+    val k = Input(UInt(kWidth.W))
+
+    // K-slice load interface.
+    val inValid = Input(Bool())
+    val inReady = Output(Bool())
+    val in_left = Input(Vec(nRows, UInt(precision.W)))
+    val in_top = Input(Vec(nCols, UInt(precision.W)))
+
+    // Tile outputs and status.
+    val out = Output(Vec(nRows, Vec(nCols, UInt((2 * precision).W))))
+    val busy = Output(Bool())
+    val done = Output(Bool())
+  })
+
+  val controller = Module(new Controller(precision = precision, nRows = nRows, nCols = nCols, maxK = maxK))
+  val mesh = Module(new Mesh(precision = precision, nRows = nRows, nCols = nCols))
+
+  controller.io.cmdValid := io.cmdValid
+  io.cmdReady := controller.io.cmdReady
+  controller.io.k := io.k
+
+  controller.io.inValid := io.inValid
+  io.inReady := controller.io.inReady
+  controller.io.in_left := io.in_left
+  controller.io.in_top := io.in_top
+
+  mesh.io.left := controller.io.out_left
+  mesh.io.top := controller.io.out_top
+  mesh.io.inValid := controller.io.outValid
+  mesh.io.clear := controller.io.clear
+
+  io.out := mesh.io.out
+  io.busy := controller.io.busy
+  io.done := controller.io.done
+}
+
+class SystolicArrayImpl(
+  outer: SystolicArrayRoCC
+)(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
+  with HasCoreParameters
+  with HasL1CacheParameters {
+
+  val cacheParams = tileParams.dcache.get
+
+  private val precision = outer.precision
+  private val nRows = outer.nRows
+  private val nCols = outer.nCols
+  private val maxK = outer.maxK
+  private val kWidth = log2Ceil(maxK + 1)
+  private val accumPrec = precision * 2
+  private val outCount = nRows * nCols
+  private val outIdxWidth = log2Ceil(outCount + 1)
+  private val xlenBytes = xLen / 8
+  private val lgXlenBytes = log2Ceil(xlenBytes)
+  private val beatBytes = cacheDataBits / 8
+  private val wordsPerBeat = beatBytes / xlenBytes
+  private val laneWidth = math.max(1, log2Ceil(wordsPerBeat))
+  private val beatOffsetBits = log2Ceil(beatBytes)
+
+  require(isPow2(xlenBytes), s"xLen bytes must be a power of two, got ${xlenBytes}")
+  require(cacheDataBits % xLen == 0, s"cacheDataBits must be a multiple of xLen (${cacheDataBits} % ${xLen})")
+  require(wordsPerBeat > 0, "wordsPerBeat must be > 0")
+  require(nRows > 0 && nCols > 0, "mesh dimensions must be > 0")
+  require(maxK > 0, "maxK must be > 0")
+  require(precision * nRows <= xLen, s"left edge payload exceeds xLen (${precision * nRows} > ${xLen})")
+  require(precision * nCols <= xLen, s"top edge payload exceeds xLen (${precision * nCols} > ${xLen})")
+  require(accumPrec <= xLen, s"output element width exceeds xLen (${accumPrec} > ${xLen})")
+
+  val core = Module(new SystolicArrayCore(
+    precision = precision,
+    nRows = nRows,
+    nCols = nCols,
+    maxK = maxK
+  ))
+
+  val flatOut = Wire(Vec(outCount, UInt(accumPrec.W)))
+  for (i <- 0 until nRows) {
+    for (j <- 0 until nCols) {
+      flatOut(i * nCols + j) := core.io.out(i)(j)
+    }
+  }
+
+  val leftVec = Wire(Vec(nRows, UInt(precision.W)))
+  val topVec = Wire(Vec(nCols, UInt(precision.W)))
+
+  val s_idle :: s_core_start :: s_req_left :: s_wait_left :: s_req_top :: s_wait_top :: s_feed_core :: s_wait_core_done :: s_req_put :: s_wait_put :: s_resp :: Nil = Enum(11)
+  val state = RegInit(s_idle)
+
+  val aBase = RegInit(0.U(xLen.W))
+  val bBase = RegInit(0.U(xLen.W))
+  val cBase = RegInit(0.U(xLen.W))
+  val configured = RegInit(false.B)
+
+  val kReg = RegInit(0.U(kWidth.W))
+  val loadIdx = RegInit(0.U(kWidth.W))
+  val outIdx = RegInit(0.U(outIdxWidth.W))
+
+  val leftWord = RegInit(0.U(xLen.W))
+  val topWord = RegInit(0.U(xLen.W))
+
+  val respRd = RegInit(0.U(5.W))
+  val respData = RegInit(0.U(xLen.W))
+
+  for (i <- 0 until nRows) {
+    leftVec(i) := leftWord(precision * (i + 1) - 1, precision * i)
+  }
+  for (j <- 0 until nCols) {
+    topVec(j) := topWord(precision * (j + 1) - 1, precision * j)
+  }
+
+  core.io.cmdValid := false.B
+  core.io.k := kReg
+  core.io.inValid := false.B
+  core.io.in_left := 0.U.asTypeOf(core.io.in_left)
+  core.io.in_top := 0.U.asTypeOf(core.io.in_top)
+
+  val (tlOut, edgesOut) = outer.atlNode.out(0)
+
+  val leftAddr = aBase + loadIdx * xlenBytes.U
+  val topAddr = bBase + loadIdx * xlenBytes.U
+  val writeAddr = cBase + outIdx * xlenBytes.U
+  val leftLane = if (wordsPerBeat > 1) leftAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
+  val topLane = if (wordsPerBeat > 1) topAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
+  val writeLane = if (wordsPerBeat > 1) writeAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
+
+  val getLeftBits = edgesOut.Get(
+    fromSource = 0.U,
+    toAddress = leftAddr,
+    lgSize = lgXlenBytes.U
+  )._2
+  val getTopBits = edgesOut.Get(
+    fromSource = 0.U,
+    toAddress = topAddr,
+    lgSize = lgXlenBytes.U
+  )._2
+  val putDataWords = Wire(Vec(wordsPerBeat, UInt(xLen.W)))
+  for (w <- 0 until wordsPerBeat) {
+    putDataWords(w) := Mux(writeLane === w.U, flatOut(outIdx).pad(xLen), 0.U)
+  }
+  val putWord = putDataWords.asUInt
+  val putBits = edgesOut.Put(
+    fromSource = 0.U,
+    toAddress = writeAddr,
+    lgSize = lgXlenBytes.U,
+    data = putWord
+  )._2
+  val readDataWords = Wire(Vec(wordsPerBeat, UInt(xLen.W)))
+  for (w <- 0 until wordsPerBeat) {
+    readDataWords(w) := tlOut.d.bits.data((w + 1) * xLen - 1, w * xLen)
+  }
+
+  tlOut.a.valid := false.B
+  tlOut.a.bits := getLeftBits
+  tlOut.d.ready := false.B
+
+  io.cmd.ready := (state === s_idle)
+  io.resp.valid := (state === s_resp)
+  io.resp.bits.rd := respRd
+  io.resp.bits.data := respData
+
+  when(io.cmd.fire) {
+    respRd := io.cmd.bits.inst.rd
+    val funct = io.cmd.bits.inst.funct
+
+    when(funct === 0.U) {
+      // funct=0: configure stream bases (rs1=A packed stream base, rs2=B packed stream base)
+      aBase := io.cmd.bits.rs1
+      bBase := io.cmd.bits.rs2
+      configured := true.B
+      respData := 0.U
+      state := s_resp
+    }.elsewhen(funct === 1.U) {
+      // funct=1: run one output tile (rs1=C output base, rs2=K)
+      cBase := io.cmd.bits.rs1
+      kReg := io.cmd.bits.rs2(kWidth - 1, 0)
+      loadIdx := 0.U
+      outIdx := 0.U
+      respData := Mux(configured, 0.U, 1.U)
+      state := Mux(configured, s_core_start, s_resp)
+    }.elsewhen(funct === 2.U) {
+      // funct=2: status query
+      respData := Cat(0.U((xLen - 2).W), core.io.busy, core.io.done)
+      state := s_resp
+    }.otherwise {
+      respData := "hDEAD".U
+      state := s_resp
+    }
+  }
+
+  when(state === s_core_start) {
+    core.io.cmdValid := true.B
+    when(core.io.cmdReady) {
+      state := Mux(kReg === 0.U, s_wait_core_done, s_req_left)
+    }
+  }
+
+  when(state === s_req_left) {
+    tlOut.a.valid := true.B
+    tlOut.a.bits := getLeftBits
+    when(tlOut.a.fire) {
+      state := s_wait_left
+    }
+  }
+
+  when(state === s_wait_left) {
+    tlOut.d.ready := true.B
+    when(tlOut.d.fire) {
+      leftWord := readDataWords(leftLane)
+      state := s_req_top
+    }
+  }
+
+  when(state === s_req_top) {
+    tlOut.a.valid := true.B
+    tlOut.a.bits := getTopBits
+    when(tlOut.a.fire) {
+      state := s_wait_top
+    }
+  }
+
+  when(state === s_wait_top) {
+    tlOut.d.ready := true.B
+    when(tlOut.d.fire) {
+      topWord := readDataWords(topLane)
+      state := s_feed_core
+    }
+  }
+
+  when(state === s_feed_core) {
+    core.io.inValid := true.B
+    core.io.in_left := leftVec
+    core.io.in_top := topVec
+
+    when(core.io.inReady) {
+      val nextIdx = loadIdx + 1.U
+      when(nextIdx === kReg) {
+        state := s_wait_core_done
+      }.otherwise {
+        loadIdx := nextIdx
+        state := s_req_left
+      }
+    }
+  }
+
+  when(state === s_wait_core_done) {
+    when(core.io.done) {
+      outIdx := 0.U
+      state := s_req_put
+    }
+  }
+
+  when(state === s_req_put) {
+    tlOut.a.valid := true.B
+    tlOut.a.bits := putBits
+    when(tlOut.a.fire) {
+      state := s_wait_put
+    }
+  }
+
+  when(state === s_wait_put) {
+    tlOut.d.ready := true.B
+    when(tlOut.d.fire) {
+      when(outIdx === (outCount - 1).U) {
+        respData := 0.U
+        state := s_resp
+      }.otherwise {
+        outIdx := outIdx + 1.U
+        state := s_req_put
+      }
+    }
+  }
+
+  when(io.resp.fire) {
+    state := s_idle
+  }
+}
+
+class SystolicArrayRoCC(
+  opcodes: OpcodeSet,
+  val precision: Int = 16,
+  val nRows: Int = 2,
+  val nCols: Int = 2,
+  val maxK: Int = 64
+)(implicit p: Parameters) extends LazyRoCC(opcodes) {
+  override lazy val module = new SystolicArrayImpl(
+    this
+  )
+  override val atlNode = TLClientNode(
+    Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1("SystolicArrayRoCC"))))
+  )
+}
