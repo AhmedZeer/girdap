@@ -457,7 +457,9 @@ class SystolicArrayImpl(
     }.elsewhen(funct === 1.U) {
       // funct=1: run one output tile (rs1=C output base, rs2=total K; chunked in hardware)
       cBase := io.cmd.bits.rs1
+      // inner dimension
       kRemaining := io.cmd.bits.rs2
+      // inner dim idx
       kBaseIdx := 0.U
       loadBaseIdx := 0.U
       loadIdx := 0.U
