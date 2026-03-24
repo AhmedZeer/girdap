@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+echo "TEST STARTED !"
+
 OUT_FILE_NAME="softmax_test_output.txt"
 echo "*****************TEST RESULTS*************" > $OUT_FILE_NAME
 

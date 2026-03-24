@@ -4,5 +4,11 @@
   "base" : "br-base.json",
   "overlay" : "overlay",
   "host-init" : "host-init.sh",
-  "command": "/root/run-softmax-smoke.sh"
+  "jobs" : [
+    {
+      "name" : "run_test",
+      "outputs" : [ "/root/run_result.txt" ],
+      "run" : "/root/run-softmax-smoke.sh"
+    }
+  ]
 }

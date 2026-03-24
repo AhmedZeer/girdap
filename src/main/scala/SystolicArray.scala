@@ -490,6 +490,7 @@ class SystolicArrayImpl(
         state := s_req_put
       }
     }.otherwise {
+      // Dynamic inner dim computation
       val chunkSize = Mux(kRemaining > maxK.U, maxK.U, kRemaining)
       kReg := chunkSize(kWidth - 1, 0)
       loadIdx := 0.U
