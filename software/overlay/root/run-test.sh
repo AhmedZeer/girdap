@@ -1,7 +1,7 @@
 #!/bin/bash
 
 echo "TEST STATRTED !!!"
-/root/test.riscv
+/root/softmax_norm_fpga_smoke.riscv
 echo "TEST FINISHED !!!"
 
 poweroff -f
