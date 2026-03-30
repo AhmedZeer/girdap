@@ -3,7 +3,7 @@ set -euo pipefail
 
 echo "Building softmax benchmark"
 make clean
-make
+make BUILD_MODE=linux
 mkdir -p overlay/root
 cp -r ./build/* overlay/root/
 
