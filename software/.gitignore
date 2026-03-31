@@ -1,6 +1,8 @@
 # Binary and other trash
 *.riscv
 *.dump
+build/
+libtoyrocc/*.so
 
 # Editor stuff
 .vscode/

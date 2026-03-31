@@ -4,7 +4,7 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import org.chipsalliance.cde.config.{Config, Parameters}
 
-class WithToyRoCC extends Config((site, here, up) => {
+class SoftmaxAccel extends Config((site, here, up) => {
   case BuildRoCC => List(
     (p: Parameters) => {
       val osm = LazyModule(new OnlineSoftmax(
@@ -14,17 +14,19 @@ class WithToyRoCC extends Config((site, here, up) => {
       )(p))
       osm
     })
-    /*
-    (p: Parameters) => {
-      val sa = LazyModule(new SystolicArrayRoCC(
-        precision = 16,
-        nRows = 2,
-        nCols = 2,
-        maxK = 64,
-        opcodes = OpcodeSet.custom1,
-      )(p))
-      sa
-    }
+})
+
+class MatmulAccel extends Config((site, here, up) => {
+  case BuildRoCC => List(
+  (p: Parameters) => {
+    val sa = LazyModule(new SystolicArrayRoCC(
+      precision = 16,
+      nRows = 2,
+      nCols = 2,
+      maxK = 64,
+      opcodes = OpcodeSet.custom1,
+    )(p))
+    sa
+  }
   )
-     */
 })

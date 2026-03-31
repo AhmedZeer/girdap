@@ -58,3 +58,5 @@ $(BUILD_DIR):
 
 clean:
 	rm -rf $(BUILD_DIR)
+	rm -f *.riscv
+	rm -f libtoyrocc/*.so

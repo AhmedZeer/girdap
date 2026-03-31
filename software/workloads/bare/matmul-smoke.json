@@ -1,0 +1,7 @@
+{
+  "name" : "matmul-smoke-bare",
+  "workdir" : "../..",
+  "base" : "bare-base.json",
+  "host-init" : "host-init.sh",
+  "bin" : "../../build/systolic_matmul_simple.riscv"
+}

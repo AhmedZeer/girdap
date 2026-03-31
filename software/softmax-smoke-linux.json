@@ -1,8 +1,0 @@
-{
-  "name" : "softmax-smoke-linux",
-  "workdir" : ".",
-  "base" : "br-base.json",
-  "overlay" : "overlay",
-  "host-init" : "host-init-linux.sh",
-  "command" : "echo SELAMLAR KNK 2 && /root/run-softmax-smoke.sh"
-}
