@@ -6,7 +6,6 @@ import org.chipsalliance.cde.config.{Config, Parameters}
 
 class WithToyRoCC extends Config((site, here, up) => {
   case BuildRoCC => List(
-    /*
     (p: Parameters) => {
       val osm = LazyModule(new OnlineSoftmax(
         intPrecision = 32,
@@ -14,8 +13,8 @@ class WithToyRoCC extends Config((site, here, up) => {
         opcodes = OpcodeSet.custom0
       )(p))
       osm
-    },
-     */
+    })
+    /*
     (p: Parameters) => {
       val sa = LazyModule(new SystolicArrayRoCC(
         precision = 16,
@@ -27,4 +26,5 @@ class WithToyRoCC extends Config((site, here, up) => {
       sa
     }
   )
+     */
 })
