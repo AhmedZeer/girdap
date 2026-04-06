@@ -18,6 +18,8 @@ extern "C" {
 #define WS_GEMM_ROWS 4
 #define WS_GEMM_COLS 4
 #define WS_GEMM_C_TILE_WORDS (WS_GEMM_ROWS * WS_GEMM_COLS)
+#define WS_GEMM_BF16_FIXED_FRAC_BITS 8
+#define WS_GEMM_BF16_ACC_FRAC_BITS (2 * WS_GEMM_BF16_FIXED_FRAC_BITS)
 #define WS_GEMM_A_TILE_WORDS(max_m, max_k) \
   (((((max_m) + WS_GEMM_ROWS - 1) / WS_GEMM_ROWS)) * (max_k))
 #define WS_GEMM_B_TILE_WORDS(max_n, max_k) \
@@ -72,6 +74,30 @@ static inline ws_gemm_workspace_t ws_gemm_make_workspace(
   return workspace;
 }
 
+typedef struct {
+  const uint64_t *tiles;
+  int max_n;
+  int max_k;
+  int N;
+  int K;
+} ws_gemm_packed_b_t;
+
+static inline ws_gemm_packed_b_t ws_gemm_make_packed_b(
+    const uint64_t *tiles,
+    int max_n,
+    int max_k,
+    int N,
+    int K) {
+  ws_gemm_packed_b_t packed_b = {
+      .tiles = tiles,
+      .max_n = max_n,
+      .max_k = max_k,
+      .N = N,
+      .K = K,
+  };
+  return packed_b;
+}
+
 void ws_gemm_clear_stats(ws_gemm_stats_t *stats);
 
 int ws_gemm_pack_b_u16(
@@ -84,14 +110,44 @@ int ws_gemm_pack_b_u16(
     int max_k,
     uint64_t *pack_cycles);
 
+int ws_gemm_prepare_packed_b_u16(
+    const uint16_t *WS_GEMM_RESTRICT B,
+    int ldb,
+    int N,
+    int K,
+    uint64_t *WS_GEMM_RESTRICT b_tiles,
+    int max_n,
+    int max_k,
+    ws_gemm_packed_b_t *WS_GEMM_RESTRICT packed_b,
+    uint64_t *pack_cycles);
+
+int ws_gemm_prepare_packed_b_bf16(
+    const uint16_t *WS_GEMM_RESTRICT B,
+    int ldb,
+    int N,
+    int K,
+    uint64_t *WS_GEMM_RESTRICT b_tiles,
+    int max_n,
+    int max_k,
+    ws_gemm_packed_b_t *WS_GEMM_RESTRICT packed_b,
+    uint64_t *pack_cycles);
+
 int ws_gemm_u16_prepacked_b(
     const uint16_t *WS_GEMM_RESTRICT A,
     int lda,
-    const uint64_t *WS_GEMM_RESTRICT b_tiles,
+    const ws_gemm_packed_b_t *WS_GEMM_RESTRICT packed_b,
     int M,
-    int N,
-    int K,
     uint32_t *WS_GEMM_RESTRICT C,
+    int ldc,
+    const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
+    ws_gemm_stats_t *WS_GEMM_RESTRICT stats);
+
+int ws_gemm_bf16_prepacked_b(
+    const uint16_t *WS_GEMM_RESTRICT A,
+    int lda,
+    const ws_gemm_packed_b_t *WS_GEMM_RESTRICT packed_b,
+    int M,
+    uint16_t *WS_GEMM_RESTRICT C,
     int ldc,
     const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
     ws_gemm_stats_t *WS_GEMM_RESTRICT stats);
@@ -102,6 +158,19 @@ int ws_gemm_u16(
     const uint16_t *WS_GEMM_RESTRICT B,
     int ldb,
     uint32_t *WS_GEMM_RESTRICT C,
+    int ldc,
+    int M,
+    int N,
+    int K,
+    const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
+    ws_gemm_stats_t *WS_GEMM_RESTRICT stats);
+
+int ws_gemm_bf16(
+    const uint16_t *WS_GEMM_RESTRICT A,
+    int lda,
+    const uint16_t *WS_GEMM_RESTRICT B,
+    int ldb,
+    uint16_t *WS_GEMM_RESTRICT C,
     int ldc,
     int M,
     int N,

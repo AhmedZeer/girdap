@@ -1,0 +1,14 @@
+=== Systolic GEMM Random Test (BF16 Weight-Stationary) ===
+CSV_HEADER,case,M,N,K,sw_cycles,hw_e2e_cycles,hw_rc,mismatches
+PERF_HEADER,case,busy_cycles,run_cmds,preload_cmds,preload_reuse_hits,chunks_started,feed_cycles,capture_rows,tl_b_reads,tl_a_reads,tl_c_writes,wait_fill_b_cycles,wait_fill_a_cycles,load_weight_cycles,wait_chunk_out_cycles,wait_put_cycles
+STAGE_HEADER,case,pack_a_cycles,pack_b_cycles,preload_cycles,run_cycles,copy_out_cycles
+CSV_DATA,0,4,4,100,21152,3794,0,0
+PERF_DATA,0,611,1,1,1,25,100,100,25,25,4,124,280,25,272,42
+STAGE_DATA,0,1825,620,153,513,159
+CSV_DATA,1,8,8,100,84277,7340,0,0
+PERF_DATA,1,1984,4,2,4,100,400,400,50,100,16,236,850,100,944,144
+STAGE_DATA,1,3202,1215,262,1790,353
+CSV_DATA,2,16,16,100,336641,18431,0,0
+PERF_DATA,2,7160,16,4,16,400,1600,1600,100,400,64,480,2900,400,3488,576
+STAGE_DATA,2,6157,2491,535,6852,1451
+PASS: all randomized BF16 GEMM cases matched the exact fixed reference.

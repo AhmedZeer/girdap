@@ -3,10 +3,42 @@ package toyrocc
 import chisel3._
 import chisel3.util._
 
+import freechips.rocketchip.diplomacy.IdRange
 import freechips.rocketchip.rocket._
 import freechips.rocketchip.tile._
 import freechips.rocketchip.tilelink.{TLClientNode, TLMasterParameters, TLMasterPortParameters}
 import org.chipsalliance.cde.config.Parameters
+
+class WeightStationaryArrayCoreIO(
+  precision: Int,
+  nRows: Int,
+  nCols: Int,
+  accumPrec: Int
+) extends Bundle {
+  val loadWeights = Input(Bool())
+  val clearWeights = Input(Bool())
+  val weightTile = Input(Vec(nRows, Vec(nCols, UInt(precision.W))))
+
+  val inValid = Input(Bool())
+  val inVec = Input(Vec(nRows, UInt(precision.W)))
+
+  val outValid = Output(Bool())
+  val outVec = Output(Vec(nCols, UInt(accumPrec.W)))
+}
+
+abstract class WeightStationaryArrayCoreBase(
+  precision: Int,
+  nRows: Int,
+  nCols: Int,
+  accumPrec: Int
+) extends Module {
+  val io = IO(new WeightStationaryArrayCoreIO(
+    precision = precision,
+    nRows = nRows,
+    nCols = nCols,
+    accumPrec = accumPrec
+  ))
+}
 
 class ProcessingElementWS(inPrec: Int = 16, accumPrec: Int = 32) extends Module {
   val io = IO(new Bundle {
@@ -33,9 +65,38 @@ class ProcessingElementWS(inPrec: Int = 16, accumPrec: Int = 32) extends Module 
   io.outPartialSum := RegNext(io.inPartialSum + io.inElem * weight, 0.U)
 }
 
-class MeshWS(precision: Int = 16, nRows: Int = 4, nCols: Int = 4) extends Module {
-  private val accumPrec = precision * 2
+class ProcessingElementWSFixed(inPrec: Int = 16, accumPrec: Int = 64) extends Module {
+  val io = IO(new Bundle {
+    val loadWeight = Input(Bool())
+    val clearWeight = Input(Bool())
+    val weightIn = Input(SInt(inPrec.W))
 
+    val inElem = Input(SInt(inPrec.W))
+    val inPartialSum = Input(SInt(accumPrec.W))
+
+    val outElem = Output(SInt(inPrec.W))
+    val outPartialSum = Output(SInt(accumPrec.W))
+  })
+
+  val weight = RegInit(0.S(inPrec.W))
+
+  when(io.clearWeight) {
+    weight := 0.S
+  }.elsewhen(io.loadWeight) {
+    weight := io.weightIn
+  }
+
+  val mac = io.inPartialSum + (io.inElem * weight).asSInt
+  io.outElem := RegNext(io.inElem, 0.S(inPrec.W))
+  io.outPartialSum := RegNext(mac(accumPrec - 1, 0).asSInt, 0.S(accumPrec.W))
+}
+
+class MeshWS(
+  precision: Int = 16,
+  nRows: Int = 4,
+  nCols: Int = 4,
+  accumPrec: Int = 32
+) extends Module {
   val io = IO(new Bundle {
     val loadWeights = Input(Bool())
     val clearWeights = Input(Bool())
@@ -80,29 +141,77 @@ class MeshWS(precision: Int = 16, nRows: Int = 4, nCols: Int = 4) extends Module
   }
 }
 
-class WeightStationaryArrayCore(
+class MeshWSFixed(
   precision: Int = 16,
   nRows: Int = 4,
-  nCols: Int = 4
+  nCols: Int = 4,
+  accumPrec: Int = 64
 ) extends Module {
-  require(nRows == nCols, "Weight-stationary core currently assumes a square array")
-
-  private val accumPrec = precision * 2
-  private val outputLatency = 2 * nRows - 1
-
   val io = IO(new Bundle {
     val loadWeights = Input(Bool())
     val clearWeights = Input(Bool())
-    val weightTile = Input(Vec(nRows, Vec(nCols, UInt(precision.W))))
+    val weights = Input(Vec(nRows, Vec(nCols, SInt(precision.W))))
 
-    val inValid = Input(Bool())
-    val inVec = Input(Vec(nRows, UInt(precision.W)))
-
-    val outValid = Output(Bool())
-    val outVec = Output(Vec(nCols, UInt(accumPrec.W)))
+    val inElems = Input(Vec(nRows, SInt(precision.W)))
+    val outPartialSums = Output(Vec(nCols, SInt(accumPrec.W)))
   })
 
-  val mesh = Module(new MeshWS(precision = precision, nRows = nRows, nCols = nCols))
+  val pes = Seq.fill(nRows)(Seq.fill(nCols)(Module(new ProcessingElementWSFixed(precision, accumPrec))))
+
+  for (r <- 0 until nRows) {
+    for (c <- 0 until nCols) {
+      pes(r)(c).io.loadWeight := io.loadWeights
+      pes(r)(c).io.clearWeight := io.clearWeights
+      pes(r)(c).io.weightIn := io.weights(r)(c)
+    }
+  }
+
+  pes(0)(0).io.inElem := io.inElems(0)
+  pes(0)(0).io.inPartialSum := 0.S(accumPrec.W)
+
+  for (r <- 1 until nRows) {
+    pes(r)(0).io.inElem := io.inElems(r)
+    pes(r)(0).io.inPartialSum := pes(r - 1)(0).io.outPartialSum
+  }
+
+  for (c <- 1 until nCols) {
+    pes(0)(c).io.inElem := pes(0)(c - 1).io.outElem
+    pes(0)(c).io.inPartialSum := 0.S(accumPrec.W)
+  }
+
+  for (r <- 1 until nRows) {
+    for (c <- 1 until nCols) {
+      pes(r)(c).io.inElem := pes(r)(c - 1).io.outElem
+      pes(r)(c).io.inPartialSum := pes(r - 1)(c).io.outPartialSum
+    }
+  }
+
+  for (c <- 0 until nCols) {
+    io.outPartialSums(c) := pes(nRows - 1)(c).io.outPartialSum
+  }
+}
+
+class WeightStationaryArrayCoreInt(
+  precision: Int = 16,
+  nRows: Int = 4,
+  nCols: Int = 4,
+  accumPrec: Int = 32
+) extends WeightStationaryArrayCoreBase(
+  precision = precision,
+  nRows = nRows,
+  nCols = nCols,
+  accumPrec = accumPrec
+) {
+  require(nRows == nCols, "Weight-stationary core currently assumes a square array")
+  // Time until 1st output
+  private val outputLatency = 2 * nRows - 1
+
+  val mesh = Module(new MeshWS(
+    precision = precision,
+    nRows = nRows,
+    nCols = nCols,
+    accumPrec = accumPrec
+  ))
 
   mesh.io.loadWeights := io.loadWeights
   mesh.io.clearWeights := io.clearWeights
@@ -121,6 +230,65 @@ class WeightStationaryArrayCore(
   io.outValid := ShiftRegister(io.inValid, outputLatency)
 }
 
+class WeightStationaryArrayCoreBF16Fixed(
+  precision: Int = 16,
+  nRows: Int = 4,
+  nCols: Int = 4,
+  accumPrec: Int = 64,
+  fracBits: Int = 8
+) extends WeightStationaryArrayCoreBase(
+  precision = precision,
+  nRows = nRows,
+  nCols = nCols,
+  accumPrec = accumPrec
+) {
+  require(nRows == nCols, "Weight-stationary core currently assumes a square array")
+  require(precision >= 2, "fixed-point precision must be at least 2 bits")
+  require(fracBits >= 0 && fracBits < precision, s"fracBits must be in [0, precision), got $fracBits")
+
+  private val outputLatency = 2 * nRows - 1
+
+  val mesh = Module(new MeshWSFixed(
+    precision = precision,
+    nRows = nRows,
+    nCols = nCols,
+    accumPrec = accumPrec
+  ))
+
+  val weightFixed = Wire(Vec(nRows, Vec(nCols, SInt(precision.W))))
+  for (r <- 0 until nRows) {
+    for (c <- 0 until nCols) {
+      val conv = Module(new BFloat16ToSIntFixed(intBits = precision - fracBits, fracBits = fracBits))
+      conv.io.in := io.weightTile(r)(c)
+      weightFixed(r)(c) := conv.io.out
+    }
+  }
+
+  val inputFixed = Wire(Vec(nRows, SInt(precision.W)))
+  for (r <- 0 until nRows) {
+    val conv = Module(new BFloat16ToSIntFixed(intBits = precision - fracBits, fracBits = fracBits))
+    conv.io.in := io.inVec(r)
+    inputFixed(r) := conv.io.out
+  }
+
+  mesh.io.loadWeights := io.loadWeights
+  mesh.io.clearWeights := io.clearWeights
+  mesh.io.weights := weightFixed
+
+  val skewedInputs = Wire(Vec(nRows, SInt(precision.W)))
+  for (r <- 0 until nRows) {
+    val inElem = Mux(io.inValid, inputFixed(r), 0.S(precision.W))
+    skewedInputs(r) := ShiftRegister(inElem, r)
+  }
+  mesh.io.inElems := skewedInputs
+
+  // Skew output
+  for (c <- 0 until nCols) {
+    io.outVec(c) := ShiftRegister(mesh.io.outPartialSums(c), nCols - 1 - c).asUInt
+  }
+  io.outValid := ShiftRegister(io.inValid, outputLatency)
+}
+
 class SystolicArrayWSImpl(
   outer: SystolicArrayWSRoCC
 )(implicit p: Parameters) extends LazyRoCCModuleImp(outer)
@@ -133,17 +301,24 @@ class SystolicArrayWSImpl(
   private val nRows = outer.nRows
   private val nCols = outer.nCols
   private val maxK = outer.maxK
+  private val useBFloat16Input = outer.useBFloat16Input
+  private val useBFloat16Output = outer.useBFloat16Output
+  private val fixedPointFracBits = outer.fixedPointFracBits
   private val chunkKMax = nRows
   private val kWidth = log2Ceil(maxK + 1)
   private val cacheIdxWidth = log2Ceil(maxK + 1)
   private val chunkWidth = log2Ceil(chunkKMax + 1)
-  private val accumPrec = precision * 2
+  private val accumPrec = outer.accumBits
   private val outCount = nRows * nCols
-  private val outIdxWidth = log2Ceil(outCount + 1)
+  private val outputElemsPerWord = if (useBFloat16Output) (xLen / precision) else 1
+  private val outputWordCount = (outCount + outputElemsPerWord - 1) / outputElemsPerWord
+  private val outIdxWidth = log2Ceil(outputWordCount + 1)
   private val xlenBytes = xLen / 8
   private val lgXlenBytes = log2Ceil(xlenBytes)
   private val beatBytes = cacheDataBits / 8
   private val wordsPerBeat = beatBytes / xlenBytes
+  private val tlSourceIds = outer.numTLSourceIds
+  private val tlSourceIdxWidth = math.max(1, log2Ceil(tlSourceIds))
   private val laneWidth = math.max(1, log2Ceil(wordsPerBeat))
   private val beatOffsetBits = log2Ceil(beatBytes)
 
@@ -151,18 +326,34 @@ class SystolicArrayWSImpl(
   require(cacheDataBits % xLen == 0, s"cacheDataBits must be a multiple of xLen (${cacheDataBits} % ${xLen})")
   require(wordsPerBeat > 0, "wordsPerBeat must be > 0")
   require(isPow2(wordsPerBeat), s"wordsPerBeat must be a power of two, got ${wordsPerBeat}")
+  require(tlSourceIds > 0, s"numTLSourceIds must be > 0, got ${tlSourceIds}")
   require(nRows > 0 && nCols > 0, "mesh dimensions must be > 0")
   require(nRows == nCols, "weight-stationary array currently requires a square mesh")
   require(maxK > 0, "maxK must be > 0")
+  require(!useBFloat16Input || precision == 16, s"BF16 WS path expects 16-bit lanes, got precision=$precision")
+  require(!useBFloat16Output || useBFloat16Input, "BF16 output currently requires the BF16-input fixed-point core")
+  require(!useBFloat16Input || fixedPointFracBits < precision, s"fixedPointFracBits must be < precision, got $fixedPointFracBits >= $precision")
   require(precision * nRows <= xLen, s"A-stream word exceeds xLen (${precision * nRows} > ${xLen})")
   require(precision * nCols <= xLen, s"B-stream word exceeds xLen (${precision * nCols} > ${xLen})")
   require(accumPrec <= xLen, s"output element width exceeds xLen (${accumPrec} > ${xLen})")
+  require(!useBFloat16Output || (xLen % precision == 0), s"xLen (${xLen}) must be a multiple of BF16 output width (${precision})")
 
-  val core = Module(new WeightStationaryArrayCore(
-    precision = precision,
-    nRows = nRows,
-    nCols = nCols
-  ))
+  val core: WeightStationaryArrayCoreBase = if (useBFloat16Input) {
+    Module(new WeightStationaryArrayCoreBF16Fixed(
+      precision = precision,
+      nRows = nRows,
+      nCols = nCols,
+      accumPrec = accumPrec,
+      fracBits = fixedPointFracBits
+    ))
+  } else {
+    Module(new WeightStationaryArrayCoreInt(
+      precision = precision,
+      nRows = nRows,
+      nCols = nCols,
+      accumPrec = accumPrec
+    ))
+  }
 
   val aChunkBufs = Reg(Vec(2, Vec(chunkKMax, UInt(xLen.W))))
   val bCacheBuf = Reg(Vec(maxK, UInt(xLen.W)))
@@ -179,7 +370,34 @@ class SystolicArrayWSImpl(
     }
   }
 
-  val s_idle :: s_req_fill_b_cache :: s_wait_fill_b_cache :: s_prep_chunk :: s_req_fill_a :: s_wait_fill_a :: s_load_weights :: s_feed_rows :: s_wait_chunk_out :: s_req_put :: s_wait_put :: s_resp :: Nil = Enum(12)
+  val packedBFloatOut = if (useBFloat16Output) Some(Wire(Vec(outCount, UInt(precision.W)))) else None
+  val packedStoreWordsWire = if (useBFloat16Output) Some(Wire(Vec(outputWordCount, UInt(xLen.W)))) else None
+  val packedStoreWordsReg = if (useBFloat16Output) Some(Reg(Vec(outputWordCount, UInt(xLen.W)))) else None
+
+  if (useBFloat16Output) {
+    for (r <- 0 until nRows) {
+      for (c <- 0 until nCols) {
+        val conv = Module(new SIntFixedToBFloat16(accumPrec, 2 * fixedPointFracBits))
+        conv.io.in := accumTile(r)(c).asSInt
+        packedBFloatOut.get(r * nCols + c) := conv.io.out
+      }
+    }
+
+    for (w <- 0 until outputWordCount) {
+      val packedElems = Wire(Vec(outputElemsPerWord, UInt(precision.W)))
+      for (e <- 0 until outputElemsPerWord) {
+        val idx = w * outputElemsPerWord + e
+        if (idx < outCount) {
+          packedElems(e) := packedBFloatOut.get(idx)
+        } else {
+          packedElems(e) := 0.U
+        }
+      }
+      packedStoreWordsWire.get(w) := packedElems.asUInt
+    }
+  }
+
+  val s_idle :: s_req_fill_b_cache :: s_wait_fill_b_cache :: s_prep_chunk :: s_req_fill_a :: s_wait_fill_a :: s_load_weights :: s_feed_rows :: s_wait_chunk_out :: s_quantize_out :: s_req_put :: s_wait_put :: s_resp :: Nil = Enum(13)
   val state = RegInit(s_idle)
 
   // Keep this mapping aligned with software/include/systolic_ws.h.
@@ -216,11 +434,14 @@ class SystolicArrayWSImpl(
   val captureRowIdx = RegInit(0.U(chunkWidth.W))
   val outIdx = RegInit(0.U(outIdxWidth.W))
   val bCacheFillIdx = RegInit(0.U(cacheIdxWidth.W))
+  val bIssueIdx = RegInit(0.U(cacheIdxWidth.W))
   val bCacheValid = RegInit(false.B)
   val pinnedWeightsValid = RegInit(false.B)
   val bCacheK = RegInit(0.U(xLen.W))
   val cachedBBase = RegInit(0.U(xLen.W))
   val bFillForRun = RegInit(false.B)
+  val bFillInflight = RegInit(VecInit(Seq.fill(tlSourceIds)(false.B)))
+  val bFillInflightIdx = Reg(Vec(tlSourceIds, UInt(cacheIdxWidth.W)))
 
   val respRd = RegInit(0.U(5.W))
   val respData = RegInit(0.U(xLen.W))
@@ -276,24 +497,19 @@ class SystolicArrayWSImpl(
 
   val absFillIdx = kBaseIdx + fillIdx
   val aAddr = aBase + absFillIdx * xlenBytes.U
-  val bCacheAddr = bBase + bCacheFillIdx * xlenBytes.U
   val writeAddr = cBase + outIdx * xlenBytes.U
   val aLane = if (wordsPerBeat > 1) aAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
-  val bCacheLane = if (wordsPerBeat > 1) bCacheAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
   val writeLane = if (wordsPerBeat > 1) writeAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
 
   val aBeatBaseIdx = if (wordsPerBeat > 1) (absFillIdx >> laneWidth) << laneWidth else absFillIdx
-  val bBeatBaseIdx = if (wordsPerBeat > 1) (bCacheFillIdx >> laneWidth) << laneWidth else bCacheFillIdx
   val writeBeatBaseIdx = if (wordsPerBeat > 1) (outIdx >> laneWidth) << laneWidth else outIdx
 
   val aBeatAddr = aBase + aBeatBaseIdx * xlenBytes.U
-  val bBeatAddr = bBase + bBeatBaseIdx * xlenBytes.U
   val writeBeatAddr = cBase + writeBeatBaseIdx * xlenBytes.U
 
   val readLgSize = if (wordsPerBeat > 1) beatOffsetBits.U else lgXlenBytes.U
 
   val getABits = edgesOut.Get(fromSource = 0.U, toAddress = aBeatAddr, lgSize = readLgSize)._2
-  val getBCacheBits = edgesOut.Get(fromSource = 0.U, toAddress = bBeatAddr, lgSize = readLgSize)._2
 
   val prefetchAAddr = aBase + (prefetchedBaseIdx + prefetchFillIdx) * xlenBytes.U
   val prefetchALane = if (wordsPerBeat > 1) prefetchAAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
@@ -332,20 +548,30 @@ class SystolicArrayWSImpl(
   val prefetchWordsThisBeat = PopCount(prefetchReadLaneValids)
 
   val bRequestedK = bCacheK(cacheIdxWidth - 1, 0)
-  val bReadDestIdxs = Wire(Vec(wordsPerBeat, UInt(cacheIdxWidth.W)))
-  val bReadLaneValids = Wire(Vec(wordsPerBeat, Bool()))
+  val bFillBusyMask = bFillInflight.asUInt
+  val bHasFreeSource = !bFillBusyMask.andR
+  val bFillIssueSourceOH = PriorityEncoderOH(~bFillBusyMask)
+  val bFillIssueSource = OHToUInt(bFillIssueSourceOH)
+  val bIssueWords = Mux(
+    (bRequestedK - bIssueIdx) > wordsPerBeat.U,
+    wordsPerBeat.U(cacheIdxWidth.W),
+    bRequestedK - bIssueIdx
+  )
+  val bIssueAddr = bBase + bIssueIdx * xlenBytes.U
+  val getBCacheIssueBits = edgesOut.Get(
+    fromSource = bFillIssueSource,
+    toAddress = bIssueAddr,
+    lgSize = readLgSize
+  )._2
+  val bRespSource = tlOut.d.bits.source(tlSourceIdxWidth - 1, 0)
+  val bRespBaseIdx = bFillInflightIdx(bRespSource)
+  val bRespDestIdxs = Wire(Vec(wordsPerBeat, UInt(cacheIdxWidth.W)))
+  val bRespLaneValids = Wire(Vec(wordsPerBeat, Bool()))
   for (w <- 0 until wordsPerBeat) {
-    if (wordsPerBeat > 1) {
-      val laneAfterStart = w.U(laneWidth.W) >= bCacheLane
-      val laneDelta = Mux(laneAfterStart, w.U(laneWidth.W) - bCacheLane, 0.U(laneWidth.W))
-      bReadDestIdxs(w) := bCacheFillIdx + laneDelta
-      bReadLaneValids(w) := laneAfterStart && (bReadDestIdxs(w) < bRequestedK)
-    } else {
-      bReadDestIdxs(w) := bCacheFillIdx
-      bReadLaneValids(w) := bCacheFillIdx < bRequestedK
-    }
+    bRespDestIdxs(w) := bRespBaseIdx + w.U
+    bRespLaneValids(w) := bRespDestIdxs(w) < bRequestedK
   }
-  val bWordsThisBeat = PopCount(bReadLaneValids)
+  val bRespWordsThisBeat = PopCount(bRespLaneValids)
 
   val writeLaneWordIdxs = Wire(Vec(wordsPerBeat, UInt(outIdxWidth.W)))
   val writeLaneValids = Wire(Vec(wordsPerBeat, Bool()))
@@ -354,17 +580,23 @@ class SystolicArrayWSImpl(
       val laneAfterStart = w.U(laneWidth.W) >= writeLane
       val laneDelta = Mux(laneAfterStart, w.U(laneWidth.W) - writeLane, 0.U(laneWidth.W))
       writeLaneWordIdxs(w) := outIdx + laneDelta
-      writeLaneValids(w) := laneAfterStart && (writeLaneWordIdxs(w) < outCount.U)
+      writeLaneValids(w) := laneAfterStart && (writeLaneWordIdxs(w) < outputWordCount.U)
     } else {
       writeLaneWordIdxs(w) := outIdx
-      writeLaneValids(w) := outIdx < outCount.U
+      writeLaneValids(w) := outIdx < outputWordCount.U
     }
   }
   val writeWordsThisBeat = PopCount(writeLaneValids)
 
   val putDataWords = Wire(Vec(wordsPerBeat, UInt(xLen.W)))
-  for (w <- 0 until wordsPerBeat) {
-    putDataWords(w) := Mux(writeLaneValids(w), flatOut(writeLaneWordIdxs(w)).pad(xLen), 0.U)
+  if (useBFloat16Output) {
+    for (w <- 0 until wordsPerBeat) {
+      putDataWords(w) := Mux(writeLaneValids(w), packedStoreWordsReg.get(writeLaneWordIdxs(w)), 0.U)
+    }
+  } else {
+    for (w <- 0 until wordsPerBeat) {
+      putDataWords(w) := Mux(writeLaneValids(w), flatOut(writeLaneWordIdxs(w)).pad(xLen), 0.U)
+    }
   }
   val putBits = edgesOut.Put(
     fromSource = 0.U,
@@ -419,6 +651,7 @@ class SystolicArrayWSImpl(
       captureRowIdx := 0.U
       outIdx := 0.U
       bCacheFillIdx := 0.U
+      bIssueIdx := 0.U
       activeABufSel := 0.U
       prefetchedABufSel := 1.U
       prefetchedValid := false.B
@@ -426,6 +659,9 @@ class SystolicArrayWSImpl(
       prefetchedChunkK := 0.U
       prefetchFillIdx := 0.U
       prefetchState := pf_idle
+      for (i <- 0 until tlSourceIds) {
+        bFillInflight(i) := false.B
+      }
       for (r <- 0 until nRows) {
         for (c <- 0 until nCols) {
           accumTile(r)(c) := 0.U
@@ -462,6 +698,7 @@ class SystolicArrayWSImpl(
       captureRowIdx := 0.U
       outIdx := 0.U
       bCacheFillIdx := 0.U
+      bIssueIdx := 0.U
       activeABufSel := 0.U
       prefetchedABufSel := 1.U
       prefetchedValid := false.B
@@ -469,6 +706,9 @@ class SystolicArrayWSImpl(
       prefetchedChunkK := 0.U
       prefetchFillIdx := 0.U
       prefetchState := pf_idle
+      for (i <- 0 until tlSourceIds) {
+        bFillInflight(i) := false.B
+      }
       when(pinnedWeightsValid) {
         incPreloadReuseHit := true.B
       }
@@ -492,9 +732,13 @@ class SystolicArrayWSImpl(
       val requestedK = io.cmd.bits.rs2
       bBase := io.cmd.bits.rs1
       bCacheFillIdx := 0.U
+      bIssueIdx := 0.U
       prefetchedValid := false.B
       prefetchFillIdx := 0.U
       prefetchState := pf_idle
+      for (i <- 0 until tlSourceIds) {
+        bFillInflight(i) := false.B
+      }
       bCacheK := requestedK
       bCacheValid := requestedK === 0.U
       pinnedWeightsValid := requestedK === 0.U
@@ -547,25 +791,43 @@ class SystolicArrayWSImpl(
     prefetchState := pf_req_fill_a
   }
 
+  val bFillCanIssue =
+    (state === s_req_fill_b_cache || state === s_wait_fill_b_cache) &&
+      bHasFreeSource &&
+      (bIssueIdx < bRequestedK)
+
   when(state === s_req_fill_b_cache) {
-    tlOut.a.valid := true.B
-    tlOut.a.bits := getBCacheBits
+    tlOut.a.valid := bFillCanIssue
+    tlOut.a.bits := getBCacheIssueBits
     when(tlOut.a.fire) {
       incTLBRead := true.B
+      bFillInflight(bFillIssueSource) := true.B
+      bFillInflightIdx(bFillIssueSource) := bIssueIdx
+      bIssueIdx := bIssueIdx + bIssueWords
       state := s_wait_fill_b_cache
     }
   }
 
   when(state === s_wait_fill_b_cache) {
+    tlOut.a.valid := bFillCanIssue
+    tlOut.a.bits := getBCacheIssueBits
     tlOut.d.ready := true.B
+    when(tlOut.a.fire) {
+      incTLBRead := true.B
+      bFillInflight(bFillIssueSource) := true.B
+      bFillInflightIdx(bFillIssueSource) := bIssueIdx
+      bIssueIdx := bIssueIdx + bIssueWords
+    }
     when(tlOut.d.fire) {
       for (w <- 0 until wordsPerBeat) {
-        when(bReadLaneValids(w)) {
-          bCacheBuf(bReadDestIdxs(w)) := readDataWords(w)
+        when(bRespLaneValids(w)) {
+          bCacheBuf(bRespDestIdxs(w)) := readDataWords(w)
         }
       }
-      val nextIdx = bCacheFillIdx + bWordsThisBeat
+      bFillInflight(bRespSource) := false.B
+      val nextIdx = bCacheFillIdx + bRespWordsThisBeat
       when(nextIdx >= bRequestedK) {
+        bCacheFillIdx := 0.U
         bCacheValid := true.B
         when(!bFillForRun) {
           pinnedWeightsValid := true.B
@@ -574,7 +836,6 @@ class SystolicArrayWSImpl(
         state := Mux(bFillForRun, s_prep_chunk, s_resp)
       }.otherwise {
         bCacheFillIdx := nextIdx
-        state := s_req_fill_b_cache
       }
     }
   }
@@ -582,7 +843,11 @@ class SystolicArrayWSImpl(
   when(state === s_prep_chunk) {
     when(kRemaining === 0.U) {
       outIdx := 0.U
-      state := s_req_put
+      if (useBFloat16Output) {
+        state := s_quantize_out
+      } else {
+        state := s_req_put
+      }
     }.otherwise {
       when(prefetchedValid && (prefetchedBaseIdx === kBaseIdx)) {
         incChunkStarted := true.B
@@ -685,6 +950,15 @@ class SystolicArrayWSImpl(
     }
   }
 
+  if (useBFloat16Output) {
+    when(state === s_quantize_out) {
+      for (w <- 0 until outputWordCount) {
+        packedStoreWordsReg.get(w) := packedStoreWordsWire.get(w)
+      }
+      state := s_req_put
+    }
+  }
+
   when(state === s_req_put) {
     tlOut.a.valid := true.B
     tlOut.a.bits := putBits
@@ -698,7 +972,7 @@ class SystolicArrayWSImpl(
     tlOut.d.ready := true.B
     when(tlOut.d.fire) {
       val nextOutIdx = outIdx + writeWordsThisBeat
-      when(nextOutIdx >= outCount.U) {
+      when(nextOutIdx >= outputWordCount.U) {
         respData := 0.U
         state := s_resp
       }.otherwise {
@@ -770,10 +1044,18 @@ class SystolicArrayWSRoCC(
   val precision: Int = 16,
   val nRows: Int = 4,
   val nCols: Int = 4,
-  val maxK: Int = 64
+  val maxK: Int = 64,
+  val useBFloat16Input: Boolean = false,
+  val useBFloat16Output: Boolean = false,
+  val fixedPointFracBits: Int = 8,
+  val accumBits: Int = 32,
+  val numTLSourceIds: Int = 4
 )(implicit p: Parameters) extends LazyRoCC(opcodes) {
   override lazy val module = new SystolicArrayWSImpl(this)
   override val atlNode = TLClientNode(
-    Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1("SystolicArrayWSRoCC"))))
+    Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(
+      name = "SystolicArrayWSRoCC",
+      sourceId = IdRange(0, numTLSourceIds)
+    ))))
   )
 }

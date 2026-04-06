@@ -10,6 +10,7 @@ These notes track the optimization work on the `4x4` weight-stationary RoCC syst
 ## Current Config Facts
 
 - The current WS config already uses a `128-bit` system bus in [chipyard/ToyConfigs.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/chipyard/ToyConfigs.scala).
+- A separate `256-bit` comparison config now exists as `chipyard.MatmulAccel4x4WS256Config` in [chipyard/ToyConfigs.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/chipyard/ToyConfigs.scala).
 - The WS RTL derives its transfer width from `cacheDataBits`, so wider TL beats directly increase `wordsPerBeat` in [src/main/scala/SystolicArrayWS.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/src/main/scala/SystolicArrayWS.scala).
 - With `xLen = 64` and `systemBusWidth = 128`, the current design moves `2` packed words per beat.
 
@@ -115,6 +116,108 @@ Design intent:
 - `ws_gemm_u16_prepacked_b(...)` exists for future weight reuse, which matters for transformer inference
 - current WS tests and benchmarks should become thin wrappers over the library instead of owning the kernel logic directly
 
+### 8. Separate `256-bit` WS config
+
+Added a second WS config so bus-width experiments do not overwrite the `128-bit` baseline.
+
+File:
+
+- [chipyard/ToyConfigs.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/chipyard/ToyConfigs.scala)
+
+Config:
+
+- `chipyard.MatmulAccel4x4WS256Config`
+
+Measured effect on random WS:
+
+- `4x4x100`: `4724 -> 4015`
+- `8x8x100`: `9884 -> 7877`
+- `16x16x100`: `26556 -> 19605`
+
+Measured hardware-counter effect on `16x16x100`:
+
+- `busy_cycles`: `10463 -> 7849`
+- `tl_b_reads`: `200 -> 100`
+- `tl_a_reads`: `800 -> 400`
+- `tl_c_writes`: `128 -> 64`
+- `wait_fill_b_cycles`: `1680 -> 1072`
+- `wait_fill_a_cycles`: `5303 -> 2902`
+- `wait_put_cycles`: `960 -> 577`
+
+Interpretation:
+
+- widening the bus gave another strong real speedup
+- the transfer-count hypothesis was correct
+- the remaining easy RTL wins are now smaller and more structural
+
+### 9. Pending RTL experiment: multi-outstanding B fills
+
+Implemented and validated:
+
+- multiple in-flight TL source IDs for B-tile preload in [src/main/scala/SystolicArrayWS.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/src/main/scala/SystolicArrayWS.scala)
+
+Design intent:
+
+- keep several B-cache beat reads in flight instead of strict request/response serialization
+- target the remaining preload-side memory latency without changing the PE array or software API
+
+Expected effect:
+
+- `tl_b_reads` should stay the same
+- `wait_fill_b_cycles` and `preload_cycles` should drop
+- end-to-end gains should be most visible on larger `K`
+
+Measured effect on the `256-bit` config:
+
+- `4x4x100`: `4015 -> 3835`
+- `8x8x100`: `7877 -> 7528`
+- `16x16x100`: `19605 -> 18909`
+
+Measured hardware-counter effect on `16x16x100`:
+
+- `tl_b_reads`: unchanged at `100`
+- `wait_fill_b_cycles`: `1072 -> 472`
+- `preload_cycles`: `1223 -> 527`
+- `busy_cycles`: `7849 -> 7153`
+
+Interpretation:
+
+- the change behaved as intended
+- preload-side serialization is now much less exposed
+- remaining hardware-side gains will require either deeper overlap on A/output traffic or a larger interface change
+
+### 10. Prepared-weight API for model code
+
+Added a cleaner software path for weight reuse in the shared library:
+
+- `ws_gemm_prepare_packed_b_u16(...)` in [software/include/ws_gemm.h](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/include/ws_gemm.h)
+- implementation in [software/common/ws_gemm.c](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/common/ws_gemm.c)
+
+Also added a dedicated reuse benchmark:
+
+- [software/src/systolic_matmul_reuse_weight_stationary.c](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/src/systolic_matmul_reuse_weight_stationary.c)
+
+Design intent:
+
+- pack static weights once
+- run multiple GEMMs against the same prepared weights
+- measure the exact benefit of the model-facing reuse path separately from microkernel-only tuning
+
+Measured effect from the reuse benchmark with repeated serial calls:
+
+- `8x8x100`, `4` repeats: `31511 -> 24451` plus one-time pack `1545`
+- `16x16x100`, `4` repeats: `78638 -> 64737` plus one-time pack `3119`
+
+Measured stage effect:
+
+- prepared serial runs removed repeated `pack_b_cycles`
+- prepared serial runs still paid repeated `preload_cycles`, because each GEMM call reloaded the packed B tiles
+
+Deferred finding:
+
+- a batched prepared-weight API was tried and then reverted
+- on the measured reuse cases it regressed badly because it repacked `A` per `N` tile, so it is not a good next step in the current software structure
+
 ## Latest Measured Results
 
 ### Simple WS
@@ -164,12 +267,94 @@ Latest stage breakdown for `16x16x100` after the software fast paths:
 - `run_cycles = 256`
 - `copy_out_cycles = 1196`
 
+Latest measured results with the shared WS kernel after the library fast-path fixes:
+
+- `4x4x100`: `4724`
+- `8x8x100`: `9884`
+- `16x16x100`: `26556`
+
+Latest stage breakdown for `16x16x100` with the shared WS kernel:
+
+- `pack_a_cycles = 6383`
+- `pack_b_cycles = 2591`
+- `preload_cycles = 1931`
+- `run_cycles = 8784`
+- `copy_out_cycles = 1352`
+
+Latest hardware counters for `16x16x100` with the shared WS kernel:
+
+- `busy_cycles = 10463`
+- `run_cmds = 16`
+- `preload_cmds = 4`
+- `tl_b_reads = 200`
+- `tl_a_reads = 800`
+- `tl_c_writes = 128`
+- `wait_fill_b_cycles = 1680`
+- `wait_fill_a_cycles = 5303`
+- `wait_chunk_out_cycles = 4835`
+- `wait_put_cycles = 960`
+
+Latest measured results on the `256-bit` WS config:
+
+- `4x4x100`: `4015`
+- `8x8x100`: `7877`
+- `16x16x100`: `19605`
+
+Latest stage breakdown for `16x16x100` on the `256-bit` WS config:
+
+- `pack_a_cycles = 6333`
+- `pack_b_cycles = 2946`
+- `preload_cycles = 1223`
+- `run_cycles = 6856`
+- `copy_out_cycles = 1349`
+
+Latest hardware counters for `16x16x100` on the `256-bit` WS config:
+
+- `busy_cycles = 7849`
+- `run_cmds = 16`
+- `preload_cmds = 4`
+- `tl_b_reads = 100`
+- `tl_a_reads = 400`
+- `tl_c_writes = 64`
+- `wait_fill_b_cycles = 1072`
+- `wait_fill_a_cycles = 2902`
+- `wait_chunk_out_cycles = 3488`
+- `wait_put_cycles = 577`
+
+Latest measured results on the `256-bit` config after multi-outstanding B fills:
+
+- `4x4x100`: `3835`
+- `8x8x100`: `7528`
+- `16x16x100`: `18909`
+
+Latest stage breakdown for `16x16x100` after multi-outstanding B fills:
+
+- `pack_a_cycles = 6333`
+- `pack_b_cycles = 2946`
+- `preload_cycles = 527`
+- `run_cycles = 6856`
+- `copy_out_cycles = 1349`
+
+Latest hardware counters for `16x16x100` after multi-outstanding B fills:
+
+- `busy_cycles = 7153`
+- `run_cmds = 16`
+- `preload_cmds = 4`
+- `tl_b_reads = 100`
+- `tl_a_reads = 400`
+- `tl_c_writes = 64`
+- `wait_fill_b_cycles = 472`
+- `wait_fill_a_cycles = 2902`
+- `wait_chunk_out_cycles = 3488`
+- `wait_put_cycles = 577`
+
 Current interpretation:
 
-- end-to-end `30919` cycles is still much larger than accelerator busy `10508`
+- end-to-end `18909` cycles is still much larger than accelerator busy `7153`
 - the next bottleneck is not the PE mesh
-- remaining cost is a mix of software staging and serialized memory/control behavior
-- software packing is still a first-order cost, so future generic-kernel work should focus on reusable packing and weight reuse rather than benchmark-only loops
+- remaining cost is now mostly software staging plus fixed per-chunk drain/output behavior
+- software packing is still material, and the strongest remaining RTL-side signals are A-side fill exposure and `wait_chunk_out`
+- future generic-kernel work should focus on reusable packing and weight reuse rather than benchmark-only loops
 
 ## PERF vs STAGE
 
@@ -229,14 +414,14 @@ Main tradeoff:
 Recommended way to test it:
 
 - do not overwrite the current `128-bit` config
-- add a separate `256-bit` WS config and compare counters side by side
+- use the new `chipyard.MatmulAccel4x4WS256Config` and compare counters side by side against `chipyard.MatmulAccel4x4WSConfig`
 
 ## Next Candidate Experiments
 
-1. Collect `STAGE_DATA` from `matmul-random-ws` to separate packing cost from accelerator cost.
-2. Add a separate `256-bit` WS config and compare against the current `128-bit` config.
-3. If hardware-side wait still dominates, add limited outstanding TL reads instead of strict request/response serialization.
-4. If software-side packing dominates, move toward raw/strided matrix access instead of requiring prepacked streams.
+1. Keep the prepared-serial weight path as the default reuse API for now.
+2. If another RTL pass is still desired, consider limited outstanding C writes or a more aggressive A-side read path on the `256-bit` config.
+3. For GPT-style use, structure kernels around prepared weights first; that gives real wins without another hardware redesign.
+4. If packing remains a first-order bottleneck even with weight reuse, move toward a raw/strided matrix access path in hardware instead of requiring prepacked streams.
 
 ## Current RTL Opportunities
 

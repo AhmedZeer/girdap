@@ -77,6 +77,25 @@ class MatmulAccel4x4WS extends Config((site, here, up) => {
   )
 })
 
+class MatmulAccel4x4WSBF16 extends Config((site, here, up) => {
+  case BuildRoCC => List(
+    (p: Parameters) => {
+      val sa = LazyModule(new SystolicArrayWSRoCC(
+        precision = 16,
+        nRows = 4,
+        nCols = 4,
+        maxK = 256,
+        useBFloat16Input = true,
+        useBFloat16Output = true,
+        fixedPointFracBits = 8,
+        accumBits = 64,
+        opcodes = OpcodeSet.custom1,
+      )(p))
+      sa
+    }
+  )
+})
+
 class MatmulAccel2x2 extends MatmulAccel2x2OS
 class MatmulAccel4x4 extends MatmulAccel4x4OS
 

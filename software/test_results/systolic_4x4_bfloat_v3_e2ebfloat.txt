@@ -1,0 +1,15 @@
+=== Systolic GEMM Random Test (BF16 Weight-Stationary) ===                                                                                                                                                       
+CSV_HEADER,case,M,N,K,sw_cycles,hw_e2e_cycles,hw_rc,mismatches                                                                                                                                                   
+PERF_HEADER,case,busy_cycles,run_cmds,preload_cmds,preload_reuse_hits,chunks_started,feed_cycles,capture_rows,tl_b_reads,tl_a_reads,tl_c_writes,wait_fill_b_cycles,wait_fill_a_cycles,load_weight_cycles,wait_ch 
+unk_out_cycles,wait_put_cycles                                                                                                                                                                                      
+STAGE_HEADER,case,pack_a_cycles,pack_b_cycles,preload_cycles,run_cycles,copy_out_cycles                                                                                                                          
+CSV_DATA,0,4,4,100,19743,3961,0,0                                                                                                                                                                                
+PERF_DATA,0,582,1,1,1,25,100,100,25,25,1,124,280,25,272,15                                                                                                                                                       
+STAGE_DATA,0,1802,794,141,471,153                                                                                                                                                                                
+CSV_DATA,1,8,8,100,78368,7379,0,0                                                                                                                                                                                
+PERF_DATA,1,1884,4,2,4,100,400,400,50,100,4,240,850,100,944,48                                                                                                                                                   
+STAGE_DATA,1,3156,1457,266,1698,252                                                                                                                                                                              
+CSV_DATA,2,16,16,100,312908,18156,0,0                                                                                                                                                                            
+PERF_DATA,2,6740,16,4,16,400,1600,1600,100,400,16,476,2901,400,3488,192                                                                                                                                          
+STAGE_DATA,2,6176,2947,528,6442,1050                                                                                                                                                                             
+PASS: all randomized BF16 GEMM cases matched the exact BF16 reference.                                                                                                                                           
