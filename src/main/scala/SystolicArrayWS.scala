@@ -297,30 +297,81 @@ class SystolicArrayWSImpl(
 
   val cacheParams = tileParams.dcache.get
 
-  private val precision = outer.precision
-  private val nRows = outer.nRows
-  private val nCols = outer.nCols
-  private val maxK = outer.maxK
-  private val useBFloat16Input = outer.useBFloat16Input
-  private val useBFloat16Output = outer.useBFloat16Output
-  private val fixedPointFracBits = outer.fixedPointFracBits
-  private val chunkKMax = nRows
-  private val kWidth = log2Ceil(maxK + 1)
-  private val cacheIdxWidth = log2Ceil(maxK + 1)
-  private val chunkWidth = log2Ceil(chunkKMax + 1)
-  private val accumPrec = outer.accumBits
-  private val outCount = nRows * nCols
-  private val outputElemsPerWord = if (useBFloat16Output) (xLen / precision) else 1
-  private val outputWordCount = (outCount + outputElemsPerWord - 1) / outputElemsPerWord
-  private val outIdxWidth = log2Ceil(outputWordCount + 1)
-  private val xlenBytes = xLen / 8
-  private val lgXlenBytes = log2Ceil(xlenBytes)
-  private val beatBytes = cacheDataBits / 8
-  private val wordsPerBeat = beatBytes / xlenBytes
+  // Bit-width of each input element from A/B.
+  // Packing means combining several precision-bit elements into one xLen word.
+  // Slicing means extracting one precision-bit lane back out of that packed word.
+  private val precision = outer.precision // 16bit
+  // Number of rows in the PE mesh.
+  // Also sets the height of one A tile and the number of A lanes fed per cycle.
+  private val nRows = outer.nRows // 4
+  // Number of columns in the PE mesh.
+  // Also sets the width of one B tile and the width of one output tile.
+  private val nCols = outer.nCols // 4
+  // Maximum K supported by one command.
+  // Software/hardware may still process that K in smaller chunks.
+  // Increasing maxK mostly increases capacity, not per-cycle throughput.
+  // It can avoid extra command-level tiling for larger problems, but also grows storage.
+  // bCacheBuf is the on-accelerator buffer that stores the packed B stream for up to maxK words.
+  // maxK is the total command-level K capacity; chunkKMax is the per-chunk K consumed by the mesh.
+  private val maxK = outer.maxK // 64
+  // Selects the BF16-input datapath, which converts BF16 inputs to fixed-point before MAC.
+  private val useBFloat16Input = outer.useBFloat16Input // True
+  // Selects BF16 output packing.
+  // When true, accumulated outputs are converted back to BF16 and several outputs can share one xLen word.
+  private val useBFloat16Output = outer.useBFloat16Output // True
+  // Fractional-bit count used by the fixed-point representation in the BF16-input path.
+  private val fixedPointFracBits = outer.fixedPointFracBits // 12
+  // Maximum K processed by one mesh load/feed/capture chunk.
+  // This is tied to array shape: one chunk uses at most nRows weight rows.
+  // maxK sizes the whole run; chunkKMax sizes one step of that run.
+  private val chunkKMax = nRows // 4
+  // Bit-width needed to count values in the range [0, maxK].
+  private val kWidth = log2Ceil(maxK + 1) // 7
+  // Bit-width needed to index bCacheBuf, the local packed-B storage.
+  private val cacheIdxWidth = log2Ceil(maxK + 1) // 7
+  // Bit-width for indices local to one chunk.
+  // fillIdx tracks how many A words of the current chunk are loaded.
+  // feedRowIdx tracks which chunk row is currently being fed into the core.
+  // captureRowIdx tracks which output row from the chunk is being accumulated.
+  // Since those counters never exceed chunkKMax/nRows, chunkWidth can be smaller than kWidth.
+  private val chunkWidth = log2Ceil(chunkKMax + 1) // 3
+  // Bit-width of each accumulated output element inside accumTile.
+  private val accumPrec = outer.accumBits // 64
+  // Number of scalar output elements in one output tile.
+  private val outCount = nRows * nCols // 16
+  // Number of output elements that fit into one architectural word during writeback.
+  // With BF16 output on RV64, this is 64 / 16 = 4 elements per word.
+  private val outputElemsPerWord = if (useBFloat16Output) (xLen / precision) else 1 // 4
+  // Number of architectural words needed to store the whole output tile.
+  // Example: 16 outputs / 4 BF16 outputs per word = 4 output words.
+  // Used to size the output-word index and packedStoreWords* buffers.
+  private val outputWordCount = (outCount + outputElemsPerWord - 1) / outputElemsPerWord // 4
+  // Bit-width for indexing output words during writeback.
+  private val outIdxWidth = log2Ceil(outputWordCount + 1) // 3
+  // Architectural word size in bytes.
+  private val xlenBytes = xLen / 8 // 8 bytes
+  // log2(xlenBytes).
+  // Example: RV64 => xlenBytes = 8, so lgXlenBytes = 3.
+  // Used when extracting the word-lane offset from a byte address inside a TileLink beat.
+  private val lgXlenBytes = log2Ceil(xlenBytes) // 3 bits
+  // Number of bytes in one TileLink data beat.
+  // Example: 128-bit bus => 16 bytes per beat.
+  private val beatBytes = cacheDataBits / 8 // 16 bytes per beat
+  // Number of architectural words contained in one TileLink beat.
+  // Example: 16-byte beat / 8-byte xLen word = 2 words per beat.
+  private val wordsPerBeat = beatBytes / xlenBytes // 2 words per beat
+  // Number of TileLink source IDs the accelerator may use for outstanding requests.
+  // Different source IDs let multiple requests stay in flight at once so responses can be matched back later.
   private val tlSourceIds = outer.numTLSourceIds
+  // Bit-width needed to encode those TileLink source IDs.
   private val tlSourceIdxWidth = math.max(1, log2Ceil(tlSourceIds))
+  // Bit-width needed to choose a word lane within one beat.
+  // Example: 2 words/beat => laneWidth = 1 bit.
   private val laneWidth = math.max(1, log2Ceil(wordsPerBeat))
+  // Number of low address bits needed to address bytes inside one beat.
+  // Example: 16-byte beat => beatOffsetBits = 4, so address bits [3:0] are the within-beat byte offset.
   private val beatOffsetBits = log2Ceil(beatBytes)
+  // These are private because they are internal derived constants used only by this module's control/datapath logic.
 
   require(isPow2(xlenBytes), s"xLen bytes must be a power of two, got ${xlenBytes}")
   require(cacheDataBits % xLen == 0, s"cacheDataBits must be a multiple of xLen (${cacheDataBits} % ${xLen})")
@@ -338,6 +389,9 @@ class SystolicArrayWSImpl(
   require(accumPrec <= xLen, s"output element width exceeds xLen (${accumPrec} > ${xLen})")
   require(!useBFloat16Output || (xLen % precision == 0), s"xLen (${xLen}) must be a multiple of BF16 output width (${precision})")
 
+  // Select the datapath implementation.
+  // BF16-input mode converts BF16 values to fixed-point before the mesh.
+  // Otherwise the mesh consumes plain integer/fixed-point lanes directly.
   val core: WeightStationaryArrayCoreBase = if (useBFloat16Input) {
     Module(new WeightStationaryArrayCoreBF16Fixed(
       precision = precision,
@@ -355,14 +409,28 @@ class SystolicArrayWSImpl(
     ))
   }
 
+  // Two local A chunk buffers used for ping-pong buffering, while one executes the other reads.
+  // One buffer can feed the mesh while the other buffer is being prefetched from memory.
+  // Each buffer stores up to chunkKMax packed A words, one xLen word per k-step in the chunk.
   val aChunkBufs = Reg(Vec(2, Vec(chunkKMax, UInt(xLen.W))))
+  // Local packed-B storage for the whole command, up to maxK packed words.
+  // This is the "B cache" the accelerator fills from memory before chunked execution begins.
+  // Where we store the weights before execution
   val bCacheBuf = Reg(Vec(maxK, UInt(xLen.W)))
+  // Accumulated output tile.
+  // Each chunk contributes partial sums into this tile until the full K dimension is finished.
   val accumTile = RegInit(VecInit(Seq.fill(nRows)(VecInit(Seq.fill(nCols)(0.U(accumPrec.W))))))
 
+  // Current nRows x nCols weight slice extracted from bCacheBuf for the active chunk.
   val weightTile = Wire(Vec(nRows, Vec(nCols, UInt(precision.W))))
+  // Current vector presented to the core input on this feed cycle, one lane per row.
   val currentInVec = Wire(Vec(nRows, UInt(precision.W)))
+
+  // Unpacked view of the active A chunk buffer. (Flatten the buffer, for convenience)
+  // aChunkLanes(k)(r) = row-lane r extracted from packed A word k of the active buffer.
   val aChunkLanes = Wire(Vec(chunkKMax, Vec(nRows, UInt(precision.W))))
 
+  // Flatten accumTile into row-major order so writeback logic can treat outputs as a linear vector.
   val flatOut = Wire(Vec(outCount, UInt(accumPrec.W)))
   for (r <- 0 until nRows) {
     for (c <- 0 until nCols) {
@@ -370,11 +438,18 @@ class SystolicArrayWSImpl(
     }
   }
 
+  // One BF16-converted output element per logical output position.
   val packedBFloatOut = if (useBFloat16Output) Some(Wire(Vec(outCount, UInt(precision.W)))) else None
+  // Combinationally packed writeback words.
+  // These group several BF16 outputs into one xLen word before they are optionally registered.
   val packedStoreWordsWire = if (useBFloat16Output) Some(Wire(Vec(outputWordCount, UInt(xLen.W)))) else None
+  // Registered copy of the packed writeback words.
+  // This decouples BF16 conversion/packing from the later TileLink put state.
   val packedStoreWordsReg = if (useBFloat16Output) Some(Reg(Vec(outputWordCount, UInt(xLen.W)))) else None
 
   if (useBFloat16Output) {
+
+    // Convert each accumulated fixed-point result into one BF16 element.
     for (r <- 0 until nRows) {
       for (c <- 0 until nCols) {
         val conv = Module(new SIntFixedToBFloat16(accumPrec, 2 * fixedPointFracBits))
@@ -383,6 +458,8 @@ class SystolicArrayWSImpl(
       }
     }
 
+    // Pack several BF16 output elements into one xLen-sized store word.
+    // Any unused lanes in the last word are zero-padded.
     for (w <- 0 until outputWordCount) {
       val packedElems = Wire(Vec(outputElemsPerWord, UInt(precision.W)))
       for (e <- 0 until outputElemsPerWord) {
@@ -397,7 +474,10 @@ class SystolicArrayWSImpl(
     }
   }
 
+  // Main control FSM for the RoCC wrapper:
+  // fill B cache, prepare/fill A chunks(inputs), load weights, feed the core, optionally quantize outputs, write results, respond.
   val s_idle :: s_req_fill_b_cache :: s_wait_fill_b_cache :: s_prep_chunk :: s_req_fill_a :: s_wait_fill_a :: s_load_weights :: s_feed_rows :: s_wait_chunk_out :: s_quantize_out :: s_req_put :: s_wait_put :: s_resp :: Nil = Enum(13)
+  // Current FSM state.
   val state = RegInit(s_idle)
 
   // Keep this mapping aligned with software/include/systolic_ws.h.
@@ -420,42 +500,76 @@ class SystolicArrayWSImpl(
   private val perfWaitPutCycles = 14
   val perfCounters = RegInit(VecInit(Seq.fill(numPerfCounters)(0.U(xLen.W))))
 
+  // Base address of the packed A stream in memory.
   val aBase = RegInit(0.U(xLen.W))
+  // Base address of the packed B stream in memory.
   val bBase = RegInit(0.U(xLen.W))
+  // Base address of the output tile buffer in memory.
   val cBase = RegInit(0.U(xLen.W))
+  // Set after a valid configure/preload setup so later run commands know the accelerator is initialized.
   val configured = RegInit(false.B)
 
+  // Total K requested by the current run command. (M, N, K)
   val totalK = RegInit(0.U(xLen.W))
+  // Remaining K still to be processed for the current run.
   val kRemaining = RegInit(0.U(xLen.W))
+  // Starting K index of the current chunk inside the full run. (after 1 run may become 4)
   val kBaseIdx = RegInit(0.U(xLen.W))
+  // K size of the current chunk, capped by chunkKMax. ( can be 1, 2, ... 4 )
   val chunkK = RegInit(0.U(chunkWidth.W))
+  // Next A-word slot to fill in the active chunk buffer.
   val fillIdx = RegInit(0.U(chunkWidth.W))
+  // Which feed cycle / chunk row is currently being sent into the core.
   val feedRowIdx = RegInit(0.U(chunkWidth.W))
+  // Which output row from the current chunk is being captured into accumTile. (which one is ready)
   val captureRowIdx = RegInit(0.U(chunkWidth.W))
+  // Output-word writeback index.
+  // Indexes output words, not scalar output elements.
   val outIdx = RegInit(0.U(outIdxWidth.W))
+  // Next bCacheBuf slot to be committed by the serialized B-fill path.
   val bCacheFillIdx = RegInit(0.U(cacheIdxWidth.W))
+  // Next packed-B word index to issue as a TileLink request.
   val bIssueIdx = RegInit(0.U(cacheIdxWidth.W))
+  // True when bCacheBuf holds the requested B stream contents.
   val bCacheValid = RegInit(false.B)
+  // True when the currently cached B weights may be reused by later run-preloaded commands.
   val pinnedWeightsValid = RegInit(false.B)
+  // K length associated with the data currently expected/stored in bCacheBuf.
   val bCacheK = RegInit(0.U(xLen.W))
+  // B base address associated with the cached/pinned weights.
   val cachedBBase = RegInit(0.U(xLen.W))
+  // True when the current B fill is happening only for this run and should not become pinned reusable weights.
   val bFillForRun = RegInit(false.B)
+  // One bit per TileLink source ID indicating whether a B-fill request is still in flight on that source.
   val bFillInflight = RegInit(VecInit(Seq.fill(tlSourceIds)(false.B)))
+  // Remembers which bCacheBuf index each in-flight B-fill request will write back into when its response returns.
   val bFillInflightIdx = Reg(Vec(tlSourceIds, UInt(cacheIdxWidth.W)))
 
+  // Destination integer register for the RoCC response.
   val respRd = RegInit(0.U(5.W))
+  // Data payload returned on the RoCC response channel.
   val respData = RegInit(0.U(xLen.W))
 
+  // Which ping-pong A buffer is currently feeding the core.
   val activeABufSel = RegInit(0.U(1.W))
+  // Which ping-pong A buffer is currently reserved for prefetch.
   val prefetchedABufSel = RegInit(1.U(1.W))
+  // True when the prefetched A buffer is ready to become active.
   val prefetchedValid = RegInit(false.B)
+  // Starting K index of the prefetched chunk.
   val prefetchedBaseIdx = RegInit(0.U(xLen.W))
+  // K size of the prefetched chunk.
   val prefetchedChunkK = RegInit(0.U(chunkWidth.W))
+  // Fill index used by the A-prefetch path.
   val prefetchFillIdx = RegInit(0.U(chunkWidth.W))
 
+  // Mini-FSM that prefetches the next A chunk in parallel with current compute.
   val pf_idle :: pf_req_fill_a :: pf_wait_fill_a :: Nil = Enum(3)
+  // Current A-prefetch FSM state.
   val prefetchState = RegInit(pf_idle)
 
+  // Extract the active nRows x nCols weight tile from the packed B cache.
+  // Each bCacheBuf word holds one K-step worth of nCols weight lanes.
   for (wr <- 0 until nRows) {
     val weightIdx = (kBaseIdx + wr.U)(cacheIdxWidth - 1, 0)
     val weightWord = bCacheBuf(weightIdx)
@@ -468,17 +582,22 @@ class SystolicArrayWSImpl(
     }
   }
 
+  // Unpack the active A chunk buffer into lane form so the current feed cycle can select one vector cleanly.
   for (k <- 0 until chunkKMax) {
     for (r <- 0 until nRows) {
       aChunkLanes(k)(r) := aChunkBufs(activeABufSel)(k)(precision * (r + 1) - 1, precision * r)
     }
   }
 
+  // Clamp feedRowIdx when the counter has already advanced past the valid mesh rows.
   val safeFeedRowIdx = WireDefault(0.U(chunkWidth.W))
   when(feedRowIdx < nRows.U) {
     safeFeedRowIdx := feedRowIdx
   }
 
+  // Build the per-cycle core input vector from the active chunk.
+  // currentInVec(i) picks row-lane i from the packed A word selected by safeFeedRowIdx.
+  // Lanes beyond the current chunk size are zero-padded.
   for (i <- 0 until nRows) {
     currentInVec(i) := Mux(
       i.U < chunkK,
@@ -493,31 +612,49 @@ class SystolicArrayWSImpl(
   core.io.inValid := false.B
   core.io.inVec := currentInVec
 
+  // TileLink client port used for A/B reads and C writes.
   val (tlOut, edgesOut) = outer.atlNode.out(0)
 
+  // Converting local (tile/chunk) indices to global ones (memory).
+  // Absolute A-word index currently being filled for the active chunk.
   val absFillIdx = kBaseIdx + fillIdx
+  // Byte address of the current A word to fetch.
   val aAddr = aBase + absFillIdx * xlenBytes.U
+  // Byte address of the current output word to write back.
   val writeAddr = cBase + outIdx * xlenBytes.U
+  // Word-lane of aAddr inside its TileLink beat.
   val aLane = if (wordsPerBeat > 1) aAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
+  // Word-lane of writeAddr inside its TileLink beat.
   val writeLane = if (wordsPerBeat > 1) writeAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
 
+  // Beat-aligned word index for the A fetch.
   val aBeatBaseIdx = if (wordsPerBeat > 1) (absFillIdx >> laneWidth) << laneWidth else absFillIdx
+  // Beat-aligned word index for the C writeback.
   val writeBeatBaseIdx = if (wordsPerBeat > 1) (outIdx >> laneWidth) << laneWidth else outIdx
 
+  // Beat-aligned byte address for the A fetch.
   val aBeatAddr = aBase + aBeatBaseIdx * xlenBytes.U
+  // Beat-aligned byte address for the C writeback.
   val writeBeatAddr = cBase + writeBeatBaseIdx * xlenBytes.U
 
+  // TileLink transfer size:
+  // one full beat when multiple xLen words fit per beat, otherwise one xLen word.
   val readLgSize = if (wordsPerBeat > 1) beatOffsetBits.U else lgXlenBytes.U
 
+  // Prebuilt TileLink Get message for active A-chunk fills.
   val getABits = edgesOut.Get(fromSource = 0.U, toAddress = aBeatAddr, lgSize = readLgSize)._2
 
+  // Address generation for the A-prefetch path, parallel to the active A-fill path.
   val prefetchAAddr = aBase + (prefetchedBaseIdx + prefetchFillIdx) * xlenBytes.U
   val prefetchALane = if (wordsPerBeat > 1) prefetchAAddr(beatOffsetBits - 1, lgXlenBytes) else 0.U(laneWidth.W)
   val prefetchABeatBaseIdx = if (wordsPerBeat > 1) ((prefetchedBaseIdx + prefetchFillIdx) >> laneWidth) << laneWidth else (prefetchedBaseIdx + prefetchFillIdx)
   val prefetchABeatAddr = aBase + prefetchABeatBaseIdx * xlenBytes.U
+  // Prebuilt TileLink Get message for prefetched A chunks.
   val getPrefetchABits = edgesOut.Get(fromSource = 0.U, toAddress = prefetchABeatAddr, lgSize = readLgSize)._2
 
+  // For each word lane returned in a TileLink beat, compute which A-chunk slot it should fill.
   val aReadDestIdxs = Wire(Vec(wordsPerBeat, UInt(chunkWidth.W)))
+  // Valid mask for those returned lanes: only lanes at/after aLane and still inside chunkK are useful.
   val aReadLaneValids = Wire(Vec(wordsPerBeat, Bool()))
   for (w <- 0 until wordsPerBeat) {
     if (wordsPerBeat > 1) {
@@ -547,30 +684,43 @@ class SystolicArrayWSImpl(
   }
   val prefetchWordsThisBeat = PopCount(prefetchReadLaneValids)
 
+  // Number of packed B words needed for the current preload/run.
   val bRequestedK = bCacheK(cacheIdxWidth - 1, 0)
+  // Bitmask of TileLink source IDs currently occupied by in-flight B reads.
   val bFillBusyMask = bFillInflight.asUInt
+  // True when at least one TileLink source ID is free to issue another B read.
   val bHasFreeSource = !bFillBusyMask.andR
+  // One-hot selection of the next free TileLink source ID.
   val bFillIssueSourceOH = PriorityEncoderOH(~bFillBusyMask)
+  // Integer index of the chosen TileLink source ID.
   val bFillIssueSource = OHToUInt(bFillIssueSourceOH)
+  // Number of useful packed B words expected from the next issued beat.
   val bIssueWords = Mux(
     (bRequestedK - bIssueIdx) > wordsPerBeat.U,
     wordsPerBeat.U(cacheIdxWidth.W),
     bRequestedK - bIssueIdx
   )
+  // Byte address of the next packed B read request.
   val bIssueAddr = bBase + bIssueIdx * xlenBytes.U
+  // Prebuilt TileLink Get message for B-cache fill traffic.
   val getBCacheIssueBits = edgesOut.Get(
     fromSource = bFillIssueSource,
     toAddress = bIssueAddr,
     lgSize = readLgSize
   )._2
+  // Source ID carried by the returning B-fill response.
   val bRespSource = tlOut.d.bits.source(tlSourceIdxWidth - 1, 0)
+  // Starting bCacheBuf index associated with that response's original request.
   val bRespBaseIdx = bFillInflightIdx(bRespSource)
+  // Destination bCacheBuf slot for each returned word lane in the response beat.
   val bRespDestIdxs = Wire(Vec(wordsPerBeat, UInt(cacheIdxWidth.W)))
+  // Valid mask for returned B lanes; last beat may be only partially useful.
   val bRespLaneValids = Wire(Vec(wordsPerBeat, Bool()))
   for (w <- 0 until wordsPerBeat) {
     bRespDestIdxs(w) := bRespBaseIdx + w.U
     bRespLaneValids(w) := bRespDestIdxs(w) < bRequestedK
   }
+  // Number of useful packed B words carried by this response beat.
   val bRespWordsThisBeat = PopCount(bRespLaneValids)
 
   val writeLaneWordIdxs = Wire(Vec(wordsPerBeat, UInt(outIdxWidth.W)))
