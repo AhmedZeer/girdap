@@ -1,14 +1,29 @@
 package chipyard
 
 import org.chipsalliance.cde.config.Config
-import toyrocc.{MatmulAccel2x2, MatmulAccel2x2WS, MatmulAccel4x4, MatmulAccel4x4WS, MatmulAccel4x4WSBF16, SoftmaxAccel, WithToyRoCC}
+import toyrocc.{AttnAccel4x4, MatmulAccel2x2, MatmulAccel2x2WS, MatmulAccel4x4, MatmulAccel4x4WS, MatmulAccel4x4WSBF16, SoftmaxAccel}
 
-class SoftmaxAccelConfig extends Config(
+class AttnAccel4x4WS256Config extends Config(
+  new AttnAccel4x4 ++
+    new freechips.rocketchip.rocket.WithNHugeCores(1) ++
+    new chipyard.config.WithSystemBusWidth(256) ++
+    new chipyard.config.AbstractConfig
+)
+
+class SoftmaxAccel128Config extends Config(
   new SoftmaxAccel ++
-    new freechips.rocketchip.rocket.With1TinyCore ++
+    new freechips.rocketchip.rocket.WithNHugeCores(1) ++
     new chipyard.config.WithSystemBusWidth(128) ++
     new chipyard.config.AbstractConfig
 )
+
+class SoftmaxAccel256Config extends Config(
+  new SoftmaxAccel ++
+    new freechips.rocketchip.rocket.WithNHugeCores(1) ++
+    new chipyard.config.WithSystemBusWidth(256) ++
+    new chipyard.config.AbstractConfig
+)
+
 
 class MatmulAccel2x2Config extends Config(
   new MatmulAccel2x2 ++
@@ -57,12 +72,4 @@ class MatmulAccel4x4WSBF16256Config extends Config(
     new freechips.rocketchip.rocket.WithNHugeCores(1) ++
     new chipyard.config.WithSystemBusWidth(256) ++
     new chipyard.config.AbstractConfig
-)
-
-
-class DummyToyRoCCConfig extends Config(
-  new WithToyRoCC ++
-  new freechips.rocketchip.rocket.WithNHugeCores(1) ++
-  new chipyard.config.WithSystemBusWidth(128) ++
-  new chipyard.config.AbstractConfig
 )

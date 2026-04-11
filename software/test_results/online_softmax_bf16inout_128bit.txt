@@ -1,0 +1,7 @@
+=== Online Softmax Row Test (BF16 Output) ===
+CSV_HEADER,case,rows,cols,sw_cycles,hw_e2e_cycles,pass1_cycles,pass2_cycles,speedup_x100,mismatches
+CSV_DATA,0,1,32,18923,162,28,134,11680,0
+CSV_DATA,1,1,64,37511,264,11,253,14208,0
+CSV_DATA,2,1,128,75305,505,11,494,14911,0
+CSV_DATA,3,1,256,150064,984,11,973,15250,0
+CSV_DATA,4,1,512,300835,1946,11,1935,15459,0

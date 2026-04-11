@@ -1,3 +1,4 @@
+#include "online_softmax.h"
 #include "rocc.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -103,12 +104,7 @@ float float_array[MAX_ELEMENTS];
 
 // RoCC Invocation (Updated with strict memory barriers)
 static inline uint64_t accumulate_softmax_den(uint16_t *start, uint64_t length) {
-    uint64_t raw_bits;
-    // Force CPU store buffers to flush to L1 cache before RoCC executes
-    asm volatile ("fence rw, rw" ::: "memory"); 
-    
-    ROCC_INSTRUCTION_DSS(0, raw_bits, start, length, 0); 
-    return (uint64_t)raw_bits;
+    return online_softmax_accumulate_denominator(start, length);
 }
 
 // Generate random float between -2.0 and 2.0

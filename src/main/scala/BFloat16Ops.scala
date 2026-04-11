@@ -85,6 +85,57 @@ class BFloat16ToSIntFixed(intBits: Int, fracBits: Int) extends Module {
   io.out := Mux(sign === 1.U && satMag =/= 0.U, negOut, posOut)
 }
 
+class UIntFixedToBFloat16(intWidth: Int, fracBits: Int) extends Module {
+  require(intWidth >= 1, "fixed-point input width must be at least 1 bit")
+  require(fracBits >= 0, "fracBits must be non-negative")
+
+  private val expBias = 127
+  private val maxFiniteExp = 254
+  private val mantissaBits = 7
+  private val maxShift = intWidth + mantissaBits
+  private val shiftWidth = math.max(1, log2Ceil(maxShift + 1))
+
+  val io = IO(new Bundle {
+    val in = Input(UInt(intWidth.W))
+    val out = Output(UInt(16.W))
+  })
+
+  val mag = io.in
+  val isZero = mag === 0.U
+
+  val leadingZeros = PriorityEncoder(Reverse(mag))
+  val msbIdx = (intWidth - 1).U - leadingZeros
+  val unbiasedExp = msbIdx.zext - fracBits.S((msbIdx.getWidth + 2).W)
+  val biasedExp = unbiasedExp + expBias.S((msbIdx.getWidth + 3).W)
+
+  val shiftLeft = msbIdx < mantissaBits.U
+  val rightShiftAmt = Wire(UInt(shiftWidth.W))
+  val leftShiftAmt = Wire(UInt(shiftWidth.W))
+  rightShiftAmt := 0.U
+  leftShiftAmt := 0.U
+  when(!shiftLeft) {
+    rightShiftAmt := msbIdx - mantissaBits.U
+  }.otherwise {
+    leftShiftAmt := mantissaBits.U - msbIdx
+  }
+
+  val normalizedSig = Wire(UInt((mantissaBits + 1).W))
+  when(shiftLeft) {
+    normalizedSig := (mag << leftShiftAmt)(mantissaBits, 0)
+  }.otherwise {
+    normalizedSig := (mag >> rightShiftAmt)(mantissaBits, 0)
+  }
+
+  val outNormal = Cat(0.U(1.W), biasedExp(7, 0).asUInt, normalizedSig(mantissaBits - 1, 0))
+  val outMaxFinite = Cat(0.U(1.W), maxFiniteExp.U(8.W), Fill(mantissaBits, 1.U(1.W)))
+
+  io.out := Mux(
+    isZero || (biasedExp <= 0.S),
+    0.U,
+    Mux(biasedExp > maxFiniteExp.S, outMaxFinite, outNormal)
+  )
+}
+
 class SIntFixedToBFloat16(intWidth: Int, fracBits: Int) extends Module {
   require(intWidth >= 2, "fixed-point input width must be at least 2 bits")
   require(fracBits >= 0, "fracBits must be non-negative")

@@ -4,12 +4,43 @@ import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
 import org.chipsalliance.cde.config.{Config, Parameters}
 
+
+class AttnAccel4x4 extends Config((site, here, up) => {
+  case BuildRoCC => List(
+    (p: Parameters) => {
+      val osm = LazyModule(new OnlineSoftmax(
+        intPrecision = 32,
+        fracPrecision = 32,
+        useBFloat16Output = true,
+        opcodes = OpcodeSet.custom0
+      )(p))
+      osm
+    },
+    (p: Parameters) => {
+      val sa = LazyModule(new SystolicArrayWSRoCC(
+        precision = 16,
+        nRows = 4,
+        nCols = 4,
+        maxK = 256,
+        useBFloat16Input = true,
+        useBFloat16Output = true,
+        fixedPointFracBits = 8,
+        accumBits = 64,
+        opcodes = OpcodeSet.custom1,
+      )(p))
+      sa
+    }
+  )
+})
+
+
 class SoftmaxAccel extends Config((site, here, up) => {
   case BuildRoCC => List(
     (p: Parameters) => {
       val osm = LazyModule(new OnlineSoftmax(
         intPrecision = 32,
         fracPrecision = 32,
+        useBFloat16Output = true,
         opcodes = OpcodeSet.custom0
       )(p))
       osm
@@ -98,16 +129,3 @@ class MatmulAccel4x4WSBF16 extends Config((site, here, up) => {
 
 class MatmulAccel2x2 extends MatmulAccel2x2OS
 class MatmulAccel4x4 extends MatmulAccel4x4OS
-
-
-class WithToyRoCC extends Config((site, here, up) => {
-  case BuildRoCC => List(
-    (p: Parameters) => {
-      val expAccum = LazyModule(new OnlineSoftmax(
-        intPrecision = 32,
-        fracPrecision = 32,
-        opcodes = OpcodeSet.custom0
-      )(p))
-      expAccum
-    })
-})

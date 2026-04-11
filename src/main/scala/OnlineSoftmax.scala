@@ -21,14 +21,20 @@ class OnlineSoftmaxImpl(
   with HasL1CacheParameters {
 
   val cacheParams = tileParams.dcache.get
-  val wordsPerBeat = cacheDataBits / 16
-  val outWordsPerBeat = cacheDataBits / 64
-  val outBeatsPerInBeat = wordsPerBeat / outWordsPerBeat
-  val minBf16 = "hFF80".U(16.W)
+  val useBFloat16Output = outer.useBFloat16Output
   val bitWidth = intPrecision + fracPrecision
+  val wordsPerBeat = cacheDataBits / 16
+  val outElemBits = if (useBFloat16Output) 16 else bitWidth
+  val outElemBytes = outElemBits / 8
+  val outWordsPerBeat = cacheDataBits / outElemBits
+  val outBeatsPerInBeat = wordsPerBeat / outWordsPerBeat
+  val writeBeatIdxWidth = math.max(1, log2Ceil(outBeatsPerInBeat))
+  val minBf16 = "hFF80".U(16.W)
   val lutIndexBits = log2Ceil(lutEntries)
 
   require(isPow2(lutEntries) && lutEntries >= 2, "lutEntries must be a power of 2 and >= 2")
+  require(cacheDataBits % 16 == 0, "cacheDataBits must be a multiple of the BF16 lane width")
+  require(cacheDataBits % outElemBits == 0, "cacheDataBits must be a multiple of the output element width")
   require(wordsPerBeat % outWordsPerBeat == 0, "output beat ratio must be integral")
   require(fracPrecision >= lutIndexBits - 1, "fracPrecision too small for LUT index bits")
 
@@ -45,6 +51,8 @@ class OnlineSoftmaxImpl(
     new BFloat16ToFixed(intBits = intPrecision, fracBits = fracPrecision)
   ))
   val vecFixedWires = Wire(Vec(wordsPerBeat, UInt((intPrecision + fracPrecision).W)))
+  val vecNormFixedWires = Wire(Vec(wordsPerBeat, UInt(bitWidth.W)))
+  val vecOutWires = Wire(Vec(wordsPerBeat, UInt(outElemBits.W)))
 
   val maxSub = Module(new BFloat16Sub)
   val maxExp = Module(new BFloat16Exp)
@@ -66,11 +74,11 @@ class OnlineSoftmaxImpl(
   val respRd = RegInit(0.U(5.W))
   val invSum = RegInit(0.U(bitWidth.W))
   val doWrite = RegInit(false.B)
-  val writeBeatIdx = RegInit(0.U(log2Ceil(outBeatsPerInBeat).W))
-  val outBuf = Reg(Vec(wordsPerBeat, UInt(bitWidth.W)))
+  val writeBeatIdx = RegInit(0.U(writeBeatIdxWidth.W))
+  val outBuf = Reg(Vec(wordsPerBeat, UInt(outElemBits.W)))
 
   val bytesPerBeat = (cacheDataBits / 8).U
-  val outBeatBytes = (outWordsPerBeat * 8).U
+  val outBeatBytes = bytesPerBeat
   val procElements = RegInit(0.U(xLen.W))
   val latchedData = RegInit(0.U(cacheDataBits.W))
 
@@ -103,6 +111,17 @@ class OnlineSoftmaxImpl(
     vecExps(i).io.in := vecSubs(i).io.out
     vecFixedPs(i).io.in := vecExps(i).io.out
     vecFixedWires(i) := vecFixedPs(i).io.out
+
+    val normFull = vecFixedWires(i) * invSum
+    vecNormFixedWires(i) := (normFull >> fracPrecision)(bitWidth - 1, 0)
+
+    if (useBFloat16Output) {
+      val conv = Module(new UIntFixedToBFloat16(bitWidth, fracPrecision))
+      conv.io.in := vecNormFixedWires(i)
+      vecOutWires(i) := conv.io.out
+    } else {
+      vecOutWires(i) := vecNormFixedWires(i)
+    }
   }
   val vecSum = vecFixedWires.reduceTree(_ + _)
 
@@ -119,6 +138,8 @@ class OnlineSoftmaxImpl(
 
   val remainingElems = Mux(arraySize >= procElements, arraySize - procElements, 0.U)
   val validPerBeat = Wire(Vec(outBeatsPerInBeat, UInt(log2Ceil(outWordsPerBeat + 1).W)))
+
+  // mask for out-of-bound
   for (b <- 0 until outBeatsPerInBeat) {
     val base = (b * outWordsPerBeat).U
     val rem = Mux(remainingElems > base, remainingElems - base, 0.U)
@@ -133,7 +154,7 @@ class OnlineSoftmaxImpl(
   val outMaskVec = VecInit(Seq.tabulate(outBeatsPerInBeat) { b =>
     val valid = validPerBeat(b)
     VecInit(Seq.tabulate(outWordsPerBeat) { j =>
-      Fill(8, j.U < valid)
+      Fill(outElemBytes, j.U < valid)
     }).asUInt
   })
 
@@ -211,10 +232,8 @@ class OnlineSoftmaxImpl(
   when(state === s_exp) {
     when(doWrite) {
       for (i <- 0 until wordsPerBeat) {
-        val normFull = vecFixedWires(i) * invSum
-        val norm = (normFull >> fracPrecision)(bitWidth - 1, 0)
         val isValid = procElements + i.U < arraySize
-        outBuf(i) := Mux(isValid, norm, 0.U)
+        outBuf(i) := Mux(isValid, vecOutWires(i), 0.U(outElemBits.W))
       }
       writeBeatIdx := 0.U
       state := s_put
@@ -268,6 +287,7 @@ class OnlineSoftmax(
   fracPrecision: Int = 20,
   lutEntries: Int = 256,
   lutBits: Int = 64,
+  val useBFloat16Output: Boolean = false,
   opcodes: OpcodeSet
 )(implicit p: Parameters) extends LazyRoCC(opcodes) {
   override lazy val module = new OnlineSoftmaxImpl(

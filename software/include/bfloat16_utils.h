@@ -2,6 +2,7 @@
 #define TOYROCC_BFLOAT16_UTILS_H
 
 #include <limits.h>
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -122,6 +123,76 @@ static inline void print_float_inline(float value) {
   const int whole_part = (int)value;
   const int frac_part = (int)((value - (float)whole_part) * 10000.0f);
   printf("%d.%04d ", whole_part, frac_part);
+}
+
+static inline void print_float_array_samples(
+    const char *name,
+    const float *values,
+    size_t size,
+    size_t sample_width) {
+  const size_t head_count = (size < sample_width) ? size : sample_width;
+
+  printf("\n--- ARRAY MONITOR: %s (Size: %lu) ---\n", name, (unsigned long)size);
+  printf("First %lu:  [ ", (unsigned long)head_count);
+  for (size_t i = 0; i < head_count; i++) {
+    print_float_inline(values[i]);
+  }
+  printf("]\n");
+
+  if (sample_width != 0 && size >= (sample_width * 3)) {
+    const size_t mid_start = (size / 2) - (sample_width / 2);
+    printf("Middle %lu: [ ", (unsigned long)sample_width);
+    for (size_t i = mid_start; i < mid_start + sample_width; i++) {
+      print_float_inline(values[i]);
+    }
+    printf("]\n");
+  }
+
+  if (sample_width != 0 && size >= (sample_width * 2)) {
+    const size_t last_start = size - sample_width;
+    printf("Last %lu:   [ ", (unsigned long)sample_width);
+    for (size_t i = last_start; i < size; i++) {
+      print_float_inline(values[i]);
+    }
+    printf("]\n");
+  }
+
+  printf("------------------------------------------------\n");
+}
+
+static inline void print_bf16_array_samples(
+    const char *name,
+    const uint16_t *values,
+    size_t size,
+    size_t sample_width) {
+  const size_t head_count = (size < sample_width) ? size : sample_width;
+
+  printf("\n--- ARRAY MONITOR: %s (Size: %lu) ---\n", name, (unsigned long)size);
+  printf("First %lu:  [ ", (unsigned long)head_count);
+  for (size_t i = 0; i < head_count; i++) {
+    print_float_inline(bf16_to_float(values[i]));
+  }
+  printf("]\n");
+
+  if (sample_width != 0 && size >= (sample_width * 3)) {
+    const size_t mid_start = (size / 2) - (sample_width / 2);
+    printf("Middle %lu: [ ", (unsigned long)sample_width);
+    for (size_t i = mid_start; i < mid_start + sample_width; i++) {
+      print_float_inline(bf16_to_float(values[i]));
+    }
+    printf("]\n");
+  }
+
+  if (sample_width != 0 && size >= (sample_width * 2)) {
+    const size_t last_start = size - sample_width;
+    printf("Last %lu:   [ ", (unsigned long)sample_width);
+    for (size_t i = last_start; i < size; i++) {
+      print_float_inline(bf16_to_float(values[i]));
+    }
+    printf("]\n");
+  }
+
+  printf("------------------------------------------------\n");
 }
 
 #endif

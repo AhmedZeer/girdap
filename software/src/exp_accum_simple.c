@@ -1,3 +1,4 @@
+#include "online_softmax.h"
 #include "rocc.h"
 #include <stdint.h>
 #include <stdio.h>
@@ -54,13 +55,7 @@ static inline uint64_t read_cycles(void) {
 uint16_t bf16_array[TEST_ARRAY_SIZE] __attribute__ ((aligned (64)));
 
 static inline uint64_t accumulate_softmax_den(uint16_t *start, uint64_t length) {
-    uint64_t raw_bits;
-    asm volatile ("fence");
-    
-    // Hardware writes the raw UQ12.20 bit-pattern into the lower 32 bits of raw_bits
-    ROCC_INSTRUCTION_DSS(0, raw_bits, start, length, 0); 
-    
-    return raw_bits;
+    return online_softmax_accumulate_denominator(start, length);
 }
 
 int main(void) {
