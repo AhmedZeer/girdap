@@ -1,20 +1,20 @@
-# this refers to build farms defined in config_build_farm.yaml
+# this refers to build farms defined in config_build_farm.yaml                                                                                                                                             [0/1805]
 build_farm:
   # managerinit replace start
-  base_recipe: build-farm-recipes/aws_ec2.yaml
+  base_recipe: build-farm-recipes/externally_provisioned.yaml
   recipe_arg_overrides:
     build_farm_tag: mainbuildfarm
     build_farm_hosts:
       - localhost
-  default_build_dir: /home/ubuntu/local_fsim_builds
+    default_build_dir: /home/ubuntu/local_fsim_builds
 
 builds_to_run:
     # this section references builds defined in config_build_recipes.yaml
     # if you add a build here, it will be built when you run buildbitstream
-    - midasexamples_gcd
+    - MatmulAccel4x4WSBF16v2
 
 agfis_to_share:
-    - midasexamples_gcd
+    - MatmulAccel4x4WSBF16v2
 
 share_with_accounts:
     # To share with a specific user:

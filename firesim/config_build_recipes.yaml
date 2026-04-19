@@ -11,4 +11,4 @@ MatmulAccel4x4WSBF16v2:
       build_strategy: TIMING
   post_build_hook: null
   metasim_customruntimeconfig: null
-  bit_builder_recipe: bit-builder-recipes/f1.yaml
+  bit_builder_recipe: bit-builder-recipes/f2.yaml
