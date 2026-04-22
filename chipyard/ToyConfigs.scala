@@ -1,7 +1,7 @@
 package chipyard
 
 import org.chipsalliance.cde.config.Config
-import toyrocc.{AttnAccel4x4, MatmulAccel2x2, MatmulAccel2x2WS, MatmulAccel4x4, MatmulAccel4x4WS, MatmulAccel4x4WSBF16, SoftmaxAccel}
+import toyrocc.{AttnAccel4x4, MatmulAccel2x2, MatmulAccel2x2WS, MatmulAccel2x2WSBF16, MatmulAccel4x4, MatmulAccel4x4WS, MatmulAccel4x4WSBF16, SoftmaxAccel}
 
 class AttnAccel4x4WS256Config extends Config(
   new AttnAccel4x4 ++

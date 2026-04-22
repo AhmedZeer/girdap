@@ -119,6 +119,22 @@ MatmulAccel4x4WSBF16v2:
   bit_builder_recipe: bit-builder-recipes/f2.yaml
 
 
+MatmulAccel2x2WSBF16v1:
+  PLATFORM: f2
+  TARGET_PROJECT: firesim
+  TARGET_PROJECT_MAKEFRAG: ../../../generators/firechip/chip/src/main/makefrag/firesim
+  DESIGN: FireSim
+  TARGET_CONFIG: WithDefaultFireSimBridges_WithFireSimConfigTweaks_chipyard.MatmulAccel2x2WSBF16Config
+  PLATFORM_CONFIG: BaseF2Config
+  deploy_quintuplet: null
+  platform_config_args:
+      fpga_frequency: 10
+      build_strategy: TIMING
+  post_build_hook: null
+  metasim_customruntimeconfig: null
+  bit_builder_recipe: bit-builder-recipes/f2.yaml
+
+
 SoftmaxAccel128v3:
   PLATFORM: f2
   TARGET_PROJECT: firesim
