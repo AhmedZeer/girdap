@@ -1,3 +1,8 @@
+MatmulAccel4x4BF16FpgaSafe:
+    agfi: agfi-07e09223d8aa14138
+    deploy_quintuplet_override: null
+    custom_runtime_config: null
+
 MatmulAccel4x4WSBF16NoAPrefetchDebug:
     # agfi: agfi-028c80eea2f0c1ea1
     agfi: agfi-0fbed46add314a910
