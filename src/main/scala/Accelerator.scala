@@ -166,6 +166,24 @@ class MatmulAccel4x4WSBF16NoAPrefetch extends Config((site, here, up) => {
   )
 })
 
+class MatmulAccel4x4BF16FpgaSafe extends Config((site, here, up) => {
+  case BuildRoCC => List(
+    (p: Parameters) => {
+      val sa = LazyModule(new SystolicArrayFpgaSafeRoCC(
+        precision = 16,
+        nRows = 4,
+        nCols = 4,
+        maxK = 256,
+        fixedPointFracBits = 8,
+        accumBits = 64,
+        numTLSourceIds = 2,
+        opcodes = OpcodeSet.custom1,
+      )(p))
+      sa
+    }
+  )
+})
+
 class MatmulAccel2x2WSBF16 extends Config((site, here, up) => {
   case BuildRoCC => List(
     (p: Parameters) => {
