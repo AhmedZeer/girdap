@@ -1,5 +1,6 @@
 MatmulAccel4x4WSBF16NoAPrefetchDebug:
-    agfi: agfi-028c80eea2f0c1ea1
+    # agfi: agfi-028c80eea2f0c1ea1
+    agfi: agfi-0fbed46add314a910
     deploy_quintuplet_override: null
     custom_runtime_config: null
 
