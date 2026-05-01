@@ -30,6 +30,25 @@ extern "C" {
 #define WS_GEMM_B_TILE_WORDS(max_n, max_k) \
   WS_GEMM_B_TILE_WORDS_FOR(WS_GEMM_COLS, max_n, max_k)
 
+#define WS_GEMM8_ROWS 8
+#define WS_GEMM8_COLS 8
+// Default is one 128-bit cache beat. Override to 4 for a 256-bit bus build.
+#ifndef WS_GEMM8_BEAT_WORDS
+#define WS_GEMM8_BEAT_WORDS 2
+#endif
+#if WS_GEMM8_BEAT_WORDS < 2
+#error "WS_GEMM8_BEAT_WORDS must be at least 2 for eight BF16 lanes"
+#endif
+#define WS_GEMM8_C_TILE_WORDS 16
+#define WS_GEMM8_A_TILE_WORDS(max_m, max_k) \
+  (((((max_m) + WS_GEMM8_ROWS - 1) / WS_GEMM8_ROWS)) * (max_k) * WS_GEMM8_BEAT_WORDS)
+#define WS_GEMM8_B_TILE_WORDS(max_n, max_k) \
+  (((((max_n) + WS_GEMM8_COLS - 1) / WS_GEMM8_COLS)) * (max_k) * WS_GEMM8_BEAT_WORDS)
+
+typedef struct {
+  uint64_t word[WS_GEMM8_BEAT_WORDS];
+} ws_gemm8_beat_t;
+
 typedef enum {
   WS_GEMM_OK = 0,
   WS_GEMM_ERR_BAD_DIMS = 1,
@@ -124,6 +143,17 @@ static inline ws_gemm_workspace_t ws_gemm_make_workspace(
     int max_k) {
   return ws_gemm_make_workspace_tiled(
       a_tiles, b_tiles, c_words, max_m, max_n, max_k, WS_GEMM_ROWS, WS_GEMM_COLS);
+}
+
+static inline ws_gemm_workspace_t ws_gemm8_make_workspace(
+    uint64_t *a_tiles,
+    uint64_t *b_tiles,
+    uint64_t *c_words,
+    int max_m,
+    int max_n,
+    int max_k) {
+  return ws_gemm_make_workspace_tiled(
+      a_tiles, b_tiles, c_words, max_m, max_n, max_k, WS_GEMM8_ROWS, WS_GEMM8_COLS);
 }
 
 typedef struct {
@@ -330,6 +360,39 @@ int ws_gemm_u16(
     ws_gemm_stats_t *WS_GEMM_RESTRICT stats);
 
 int ws_gemm_bf16(
+    const uint16_t *WS_GEMM_RESTRICT A,
+    int lda,
+    const uint16_t *WS_GEMM_RESTRICT B,
+    int ldb,
+    uint16_t *WS_GEMM_RESTRICT C,
+    int ldc,
+    int M,
+    int N,
+    int K,
+    const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
+    ws_gemm_stats_t *WS_GEMM_RESTRICT stats);
+
+int ws_gemm8_pack_a_bf16(
+    const uint16_t *WS_GEMM_RESTRICT A,
+    int lda,
+    int M,
+    int K,
+    uint64_t *WS_GEMM_RESTRICT a_tiles,
+    int max_m,
+    int max_k,
+    uint64_t *pack_cycles);
+
+int ws_gemm8_pack_b_bf16(
+    const uint16_t *WS_GEMM_RESTRICT B,
+    int ldb,
+    int N,
+    int K,
+    uint64_t *WS_GEMM_RESTRICT b_tiles,
+    int max_n,
+    int max_k,
+    uint64_t *pack_cycles);
+
+int ws_gemm8_bf16(
     const uint16_t *WS_GEMM_RESTRICT A,
     int lda,
     const uint16_t *WS_GEMM_RESTRICT B,

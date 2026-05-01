@@ -46,6 +46,34 @@ static inline const uint64_t *b_tile_ptr_const(
   return b_tiles + (n0 / tile_cols) * max_k;
 }
 
+static inline uint64_t *a8_tile_ptr(
+    const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
+    int m0) {
+  return workspace->a_tiles +
+         (m0 / WS_GEMM8_ROWS) * workspace->max_k * WS_GEMM8_BEAT_WORDS;
+}
+
+static inline uint64_t *a8_tile_ptr_raw(
+    uint64_t *WS_GEMM_RESTRICT a_tiles,
+    int max_k,
+    int m0) {
+  return a_tiles + (m0 / WS_GEMM8_ROWS) * max_k * WS_GEMM8_BEAT_WORDS;
+}
+
+static inline uint64_t *b8_tile_ptr(
+    uint64_t *WS_GEMM_RESTRICT b_tiles,
+    int max_k,
+    int n0) {
+  return b_tiles + (n0 / WS_GEMM8_COLS) * max_k * WS_GEMM8_BEAT_WORDS;
+}
+
+static inline const uint64_t *b8_tile_ptr_const(
+    const uint64_t *WS_GEMM_RESTRICT b_tiles,
+    int max_k,
+    int n0) {
+  return b_tiles + (n0 / WS_GEMM8_COLS) * max_k * WS_GEMM8_BEAT_WORDS;
+}
+
 static inline __attribute__((always_inline)) void pack_a_tile_full(
     const uint16_t *WS_GEMM_RESTRICT row0,
     const uint16_t *WS_GEMM_RESTRICT row1,
@@ -151,6 +179,33 @@ static inline __attribute__((always_inline)) void pack_a_tile_generic(
   }
 }
 
+static inline __attribute__((always_inline)) void pack_a8_tile_bf16(
+    const uint16_t *WS_GEMM_RESTRICT A,
+    int lda,
+    int m0,
+    uint64_t *WS_GEMM_RESTRICT dst,
+    int M,
+    int K) {
+  for (int k = 0; k < K; k++) {
+    uint64_t lo = 0;
+    uint64_t hi = 0;
+    for (int r = 0; r < WS_GEMM8_ROWS; r++) {
+      const int m = m0 + r;
+      const uint16_t lane = (m < M) ? A[m * lda + k] : 0;
+      if (r < 4) {
+        lo |= ((uint64_t)lane) << (16 * r);
+      } else {
+        hi |= ((uint64_t)lane) << (16 * (r - 4));
+      }
+    }
+    dst[WS_GEMM8_BEAT_WORDS * k + 0] = lo;
+    dst[WS_GEMM8_BEAT_WORDS * k + 1] = hi;
+    for (int w = 2; w < WS_GEMM8_BEAT_WORDS; w++) {
+      dst[WS_GEMM8_BEAT_WORDS * k + w] = 0;
+    }
+  }
+}
+
 static inline __attribute__((always_inline)) void pack_b_tile_full(
     const uint16_t *WS_GEMM_RESTRICT B,
     int ldb,
@@ -202,6 +257,34 @@ static inline __attribute__((always_inline)) void pack_b_tile_generic(
       packed |= ((uint64_t)lane) << (16 * c);
     }
     dst[k] = packed;
+  }
+}
+
+static inline __attribute__((always_inline)) void pack_b8_tile_bf16(
+    const uint16_t *WS_GEMM_RESTRICT B,
+    int ldb,
+    int n0,
+    uint64_t *WS_GEMM_RESTRICT dst,
+    int N,
+    int K) {
+  for (int k = 0; k < K; k++) {
+    uint64_t lo = 0;
+    uint64_t hi = 0;
+    const uint16_t *b = &B[k * ldb];
+    for (int c = 0; c < WS_GEMM8_COLS; c++) {
+      const int n = n0 + c;
+      const uint16_t lane = (n < N) ? b[n] : 0;
+      if (c < 4) {
+        lo |= ((uint64_t)lane) << (16 * c);
+      } else {
+        hi |= ((uint64_t)lane) << (16 * (c - 4));
+      }
+    }
+    dst[WS_GEMM8_BEAT_WORDS * k + 0] = lo;
+    dst[WS_GEMM8_BEAT_WORDS * k + 1] = hi;
+    for (int w = 2; w < WS_GEMM8_BEAT_WORDS; w++) {
+      dst[WS_GEMM8_BEAT_WORDS * k + w] = 0;
+    }
   }
 }
 
@@ -490,6 +573,24 @@ static int validate_workspace_run_only(
   return 1;
 }
 
+static int validate_workspace8_full(
+    const ws_gemm_workspace_t *workspace,
+    int M,
+    int N,
+    int K) {
+  if (workspace == 0 || workspace->a_tiles == 0 || workspace->b_tiles == 0 ||
+      workspace->c_words == 0) {
+    return 0;
+  }
+  if (M > workspace->max_m || N > workspace->max_n || K > workspace->max_k) {
+    return 0;
+  }
+  if (workspace->tile_rows != WS_GEMM8_ROWS || workspace->tile_cols != WS_GEMM8_COLS) {
+    return 0;
+  }
+  return 1;
+}
+
 static int validate_packed_b(
     const ws_gemm_packed_b_t *packed_b,
     int N,
@@ -565,6 +666,43 @@ int ws_gemm_pack_b_u16_tiled(
     } else {
       pack_b_tile_generic(B, ldb, n0, b_stream, N, K, tile_cols);
     }
+  }
+
+  if (pack_cycles != 0) {
+    *pack_cycles = ws_read_cycles() - start;
+  }
+
+  return WS_GEMM_OK;
+}
+
+int ws_gemm8_pack_b_bf16(
+    const uint16_t *WS_GEMM_RESTRICT B,
+    int ldb,
+    int N,
+    int K,
+    uint64_t *WS_GEMM_RESTRICT b_tiles,
+    int max_n,
+    int max_k,
+    uint64_t *pack_cycles) {
+  if (!validate_pack_b_dims(ldb, N, K)) {
+    return WS_GEMM_ERR_BAD_DIMS;
+  }
+  if (b_tiles == 0 || (K > 0 && N > 0 && B == 0)) {
+    return WS_GEMM_ERR_WORKSPACE;
+  }
+  if (N > max_n || K > max_k) {
+    return WS_GEMM_ERR_WORKSPACE;
+  }
+
+  uint64_t start = 0;
+  if (pack_cycles != 0) {
+    *pack_cycles = 0;
+    start = ws_read_cycles();
+  }
+
+  for (int n0 = 0; n0 < N; n0 += WS_GEMM8_COLS) {
+    uint64_t *b_stream = b8_tile_ptr(b_tiles, max_k, n0);
+    pack_b8_tile_bf16(B, ldb, n0, b_stream, N, K);
   }
 
   if (pack_cycles != 0) {
@@ -669,6 +807,25 @@ static void ws_gemm_pack_a_matrix(
   }
 }
 
+static void ws_gemm8_pack_a_matrix(
+    const uint16_t *WS_GEMM_RESTRICT A,
+    int lda,
+    int M,
+    int K,
+    const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
+    ws_gemm_stats_t *WS_GEMM_RESTRICT stats) {
+  const int measure = (stats != 0);
+
+  uint64_t pack_a_start = measure ? ws_read_cycles() : 0;
+  for (int m0 = 0; m0 < M; m0 += WS_GEMM8_ROWS) {
+    uint64_t *a_stream = a8_tile_ptr(workspace, m0);
+    pack_a8_tile_bf16(A, lda, m0, a_stream, M, K);
+  }
+  if (measure) {
+    stats->stage.pack_a_cycles += ws_read_cycles() - pack_a_start;
+  }
+}
+
 int ws_gemm_pack_a_u16(
     const uint16_t *WS_GEMM_RESTRICT A,
     int lda,
@@ -749,6 +906,43 @@ int ws_gemm_pack_a_bf16_tiled(
     uint64_t *pack_cycles) {
   return ws_gemm_pack_a_u16_tiled(
       A, lda, M, K, a_tiles, max_m, max_k, tile_rows, pack_cycles);
+}
+
+int ws_gemm8_pack_a_bf16(
+    const uint16_t *WS_GEMM_RESTRICT A,
+    int lda,
+    int M,
+    int K,
+    uint64_t *WS_GEMM_RESTRICT a_tiles,
+    int max_m,
+    int max_k,
+    uint64_t *pack_cycles) {
+  if (M < 0 || K < 0 || lda < K) {
+    return WS_GEMM_ERR_BAD_DIMS;
+  }
+  if (a_tiles == 0 || (M > 0 && K > 0 && A == 0)) {
+    return WS_GEMM_ERR_WORKSPACE;
+  }
+  if (M > max_m || K > max_k) {
+    return WS_GEMM_ERR_WORKSPACE;
+  }
+
+  uint64_t start = 0;
+  if (pack_cycles != 0) {
+    *pack_cycles = 0;
+    start = ws_read_cycles();
+  }
+
+  for (int m0 = 0; m0 < M; m0 += WS_GEMM8_ROWS) {
+    uint64_t *a_stream = a8_tile_ptr_raw(a_tiles, max_k, m0);
+    pack_a8_tile_bf16(A, lda, m0, a_stream, M, K);
+  }
+
+  if (pack_cycles != 0) {
+    *pack_cycles = ws_read_cycles() - start;
+  }
+
+  return WS_GEMM_OK;
 }
 
 static int ws_gemm_run_preloaded_tile(
@@ -1202,4 +1396,104 @@ int ws_gemm_bf16(
   }
 
   return rc;
+}
+
+int ws_gemm8_bf16(
+    const uint16_t *WS_GEMM_RESTRICT A,
+    int lda,
+    const uint16_t *WS_GEMM_RESTRICT B,
+    int ldb,
+    uint16_t *WS_GEMM_RESTRICT C,
+    int ldc,
+    int M,
+    int N,
+    int K,
+    const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
+    ws_gemm_stats_t *WS_GEMM_RESTRICT stats) {
+  ws_gemm_clear_stats(stats);
+
+  if (!validate_full_dims(lda, ldb, ldc, M, N, K)) {
+    return WS_GEMM_ERR_BAD_DIMS;
+  }
+  if (!validate_workspace8_full(workspace, M, N, K) || C == 0 ||
+      (M > 0 && K > 0 && A == 0) || (K > 0 && N > 0 && B == 0)) {
+    return WS_GEMM_ERR_WORKSPACE;
+  }
+
+  const int measure = (stats != 0);
+  if (measure) {
+    ws_sa_clear_counters();
+  }
+  const uint64_t total_start = measure ? ws_read_cycles() : 0;
+
+  const int pack_rc = ws_gemm8_pack_b_bf16(
+      B,
+      ldb,
+      N,
+      K,
+      workspace->b_tiles,
+      workspace->max_n,
+      workspace->max_k,
+      measure ? &stats->stage.pack_b_cycles : 0);
+  if (pack_rc != WS_GEMM_OK) {
+    if (measure) {
+      stats->hw_e2e_cycles = ws_read_cycles() - total_start;
+    }
+    return pack_rc;
+  }
+
+  ws_gemm8_pack_a_matrix(A, lda, M, K, workspace, stats);
+
+  for (int n0 = 0; n0 < N; n0 += WS_GEMM8_COLS) {
+    const uint64_t *b_stream =
+        b8_tile_ptr_const(workspace->b_tiles, workspace->max_k, n0);
+
+    uint64_t preload_start = measure ? ws_read_cycles() : 0;
+    if (ws_sa_preload_weights(b_stream, (uint64_t)K) != 0) {
+      if (measure) {
+        stats->hw_e2e_cycles = ws_read_cycles() - total_start;
+      }
+      return WS_GEMM_ERR_PRELOAD;
+    }
+    if (measure) {
+      stats->stage.preload_cycles += ws_read_cycles() - preload_start;
+    }
+
+    for (int m0 = 0; m0 < M; m0 += WS_GEMM8_ROWS) {
+      const uint64_t *a_stream = a8_tile_ptr(workspace, m0);
+
+      uint64_t run_start = measure ? ws_read_cycles() : 0;
+      if (ws_sa_run_preloaded(a_stream, workspace->c_words) != 0) {
+        if (measure) {
+          stats->hw_e2e_cycles = ws_read_cycles() - total_start;
+        }
+        return WS_GEMM_ERR_RUN;
+      }
+      if (measure) {
+        stats->stage.run_cycles += ws_read_cycles() - run_start;
+      }
+
+      uint64_t copy_start = measure ? ws_read_cycles() : 0;
+      store_c_tile_generic_bf16(
+          C,
+          ldc,
+          m0,
+          n0,
+          workspace->c_words,
+          M,
+          N,
+          WS_GEMM8_ROWS,
+          WS_GEMM8_COLS);
+      if (measure) {
+        stats->stage.copy_out_cycles += ws_read_cycles() - copy_start;
+      }
+    }
+  }
+
+  if (measure) {
+    ws_read_perf_counters(stats->perf);
+    stats->hw_e2e_cycles = ws_read_cycles() - total_start;
+  }
+
+  return WS_GEMM_OK;
 }
