@@ -1,7 +1,7 @@
 package chipyard
 
 import org.chipsalliance.cde.config.Config
-import toyrocc.{AttnAccel4x4, FusedAttnAccel4x4, MatmulAccel2x2, MatmulAccel2x2WS, MatmulAccel2x2WSBF16, MatmulAccel4x4, MatmulAccel4x4BF16FpgaSafe, MatmulAccel4x4WS, MatmulAccel4x4WSBF16, MatmulAccel4x4WSBF16NoAPrefetch, MatmulAccel8x8BF16FpgaSafe, SoftmaxAccel}
+import toyrocc.{AttnAccel4x4, FusedAttnAccel4x4, FusedMatmulSoftmax8x8BF16FpgaSafe, MatmulAccel2x2, MatmulAccel2x2WS, MatmulAccel2x2WSBF16, MatmulAccel4x4, MatmulAccel4x4BF16FpgaSafe, MatmulAccel4x4WS, MatmulAccel4x4WSBF16, MatmulAccel4x4WSBF16NoAPrefetch, MatmulAccel8x8BF16FpgaSafe, SoftmaxAccel}
 
 class AttnAccel4x4WS256Config extends Config(
   new AttnAccel4x4 ++
@@ -97,6 +97,13 @@ class MatmulAccel4x4BF16FpgaSafeConfig extends Config(
 
 class MatmulAccel8x8BF16FpgaSafeConfig extends Config(
   new MatmulAccel8x8BF16FpgaSafe ++
+    new freechips.rocketchip.rocket.WithNHugeCores(1) ++
+    new chipyard.config.WithSystemBusWidth(128) ++
+    new chipyard.config.AbstractConfig
+)
+
+class FusedMatmulSoftmax8x8BF16FpgaSafeConfig extends Config(
+  new FusedMatmulSoftmax8x8BF16FpgaSafe ++
     new freechips.rocketchip.rocket.WithNHugeCores(1) ++
     new chipyard.config.WithSystemBusWidth(128) ++
     new chipyard.config.AbstractConfig

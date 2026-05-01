@@ -405,6 +405,19 @@ int ws_gemm8_bf16(
     const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
     ws_gemm_stats_t *WS_GEMM_RESTRICT stats);
 
+int ws_gemm8_matmul_softmax_tile_bf16(
+    const uint16_t *WS_GEMM_RESTRICT A,
+    int lda,
+    const uint16_t *WS_GEMM_RESTRICT B,
+    int ldb,
+    uint16_t *WS_GEMM_RESTRICT C,
+    int ldc,
+    int M,
+    int N,
+    int K,
+    const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
+    ws_gemm_stats_t *WS_GEMM_RESTRICT stats);
+
 #ifdef __cplusplus
 }
 #endif

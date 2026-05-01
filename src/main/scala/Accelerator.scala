@@ -202,6 +202,28 @@ class MatmulAccel8x8BF16FpgaSafe extends Config((site, here, up) => {
   )
 })
 
+class FusedMatmulSoftmax8x8BF16FpgaSafe extends Config((site, here, up) => {
+  case BuildRoCC => List(
+    (p: Parameters) => {
+      val sa = LazyModule(new SystolicArrayFpgaSafe8x8RoCC(
+        precision = 16,
+        nRows = 8,
+        nCols = 8,
+        maxK = 256,
+        fixedPointFracBits = 8,
+        accumBits = 64,
+        numTLSourceIds = 2,
+        applyRowSoftmax = true,
+        softmaxIntPrecision = 12,
+        softmaxFracPrecision = 20,
+        clientName = "FusedMatmulSoftmax8x8FpgaSafeRoCC",
+        opcodes = OpcodeSet.custom1,
+      )(p))
+      sa
+    }
+  )
+})
+
 class MatmulAccel2x2WSBF16 extends Config((site, here, up) => {
   case BuildRoCC => List(
     (p: Parameters) => {

@@ -1497,3 +1497,106 @@ int ws_gemm8_bf16(
 
   return WS_GEMM_OK;
 }
+
+int ws_gemm8_matmul_softmax_tile_bf16(
+    const uint16_t *WS_GEMM_RESTRICT A,
+    int lda,
+    const uint16_t *WS_GEMM_RESTRICT B,
+    int ldb,
+    uint16_t *WS_GEMM_RESTRICT C,
+    int ldc,
+    int M,
+    int N,
+    int K,
+    const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
+    ws_gemm_stats_t *WS_GEMM_RESTRICT stats) {
+  ws_gemm_clear_stats(stats);
+
+  if (!validate_full_dims(lda, ldb, ldc, M, N, K) ||
+      M != WS_GEMM8_ROWS || N != WS_GEMM8_COLS) {
+    return WS_GEMM_ERR_BAD_DIMS;
+  }
+  if (!validate_workspace8_full(workspace, M, N, K) || C == 0 ||
+      (M > 0 && K > 0 && A == 0) || (K > 0 && N > 0 && B == 0)) {
+    return WS_GEMM_ERR_WORKSPACE;
+  }
+
+  const int measure = (stats != 0);
+  if (measure) {
+    ws_sa_clear_counters();
+  }
+  const uint64_t total_start = measure ? ws_read_cycles() : 0;
+
+  const int pack_b_rc = ws_gemm8_pack_b_bf16(
+      B,
+      ldb,
+      N,
+      K,
+      workspace->b_tiles,
+      workspace->max_n,
+      workspace->max_k,
+      measure ? &stats->stage.pack_b_cycles : 0);
+  if (pack_b_rc != WS_GEMM_OK) {
+    if (measure) {
+      stats->hw_e2e_cycles = ws_read_cycles() - total_start;
+    }
+    return pack_b_rc;
+  }
+
+  const int pack_a_rc = ws_gemm8_pack_a_bf16(
+      A,
+      lda,
+      M,
+      K,
+      workspace->a_tiles,
+      workspace->max_m,
+      workspace->max_k,
+      measure ? &stats->stage.pack_a_cycles : 0);
+  if (pack_a_rc != WS_GEMM_OK) {
+    if (measure) {
+      stats->hw_e2e_cycles = ws_read_cycles() - total_start;
+    }
+    return pack_a_rc;
+  }
+
+  uint64_t preload_start = measure ? ws_read_cycles() : 0;
+  if (ws_sa_preload_weights(workspace->b_tiles, (uint64_t)K) != 0) {
+    if (measure) {
+      stats->hw_e2e_cycles = ws_read_cycles() - total_start;
+    }
+    return WS_GEMM_ERR_PRELOAD;
+  }
+  if (measure) {
+    stats->stage.preload_cycles += ws_read_cycles() - preload_start;
+  }
+
+  uint64_t run_start = measure ? ws_read_cycles() : 0;
+  if (ws_sa_run_preloaded(workspace->a_tiles, workspace->c_words) != 0) {
+    if (measure) {
+      stats->hw_e2e_cycles = ws_read_cycles() - total_start;
+    }
+    return WS_GEMM_ERR_RUN;
+  }
+  if (measure) {
+    stats->stage.run_cycles += ws_read_cycles() - run_start;
+  }
+
+  uint64_t copy_start = measure ? ws_read_cycles() : 0;
+  store_c_tile_generic_bf16(
+      C,
+      ldc,
+      0,
+      0,
+      workspace->c_words,
+      M,
+      N,
+      WS_GEMM8_ROWS,
+      WS_GEMM8_COLS);
+  if (measure) {
+    stats->stage.copy_out_cycles += ws_read_cycles() - copy_start;
+    ws_read_perf_counters(stats->perf);
+    stats->hw_e2e_cycles = ws_read_cycles() - total_start;
+  }
+
+  return WS_GEMM_OK;
+}

@@ -2,6 +2,7 @@ package toyrocc
 
 import chisel3._
 import chisel3.util._
+import scala.math.BigDecimal.RoundingMode
 
 import freechips.rocketchip.diplomacy.IdRange
 import freechips.rocketchip.rocket._
@@ -530,12 +531,20 @@ class SystolicArrayFpgaSafe8x8Impl(
   private val fixedPointFracBits = outer.fixedPointFracBits
   private val accumPrec = outer.accumBits
   private val tlSourceIds = outer.numTLSourceIds
+  private val applyRowSoftmax = outer.applyRowSoftmax
+  private val softmaxIntPrecision = outer.softmaxIntPrecision
+  private val softmaxFracPrecision = outer.softmaxFracPrecision
+  private val softBitWidth = softmaxIntPrecision + softmaxFracPrecision
+  private val lutEntries = 256
+  private val lutBits = 64
+  private val minBf16 = "hFF80".U(16.W)
 
   private val kWidth = log2Ceil(maxK + 1)
   private val outCount = nRows * nCols
   private val outputElemsPerWord = xLen / precision
   private val outputWordCount = (outCount + outputElemsPerWord - 1) / outputElemsPerWord
   private val outIdxWidth = log2Ceil(outputWordCount + 1)
+  private val rowIdxWidth = log2Ceil(nRows + 1)
   private val xlenBytes = xLen / 8
   private val beatBytes = cacheDataBits / 8
   private val wordsPerBeat = beatBytes / xlenBytes
@@ -555,12 +564,61 @@ class SystolicArrayFpgaSafe8x8Impl(
   require(isPow2(wordsPerBeat), s"wordsPerBeat must be a power of two, got ${wordsPerBeat}")
   require(accumPrec <= xLen, s"accumBits must fit in xLen (${accumPrec} > ${xLen})")
   require(outputElemsPerWord > 0, "xLen must hold at least one BF16 output")
+  require(outputElemsPerWord == 4, "8x8 row-softmax packing expects four BF16 outputs per xLen word")
   require(tlSourceIds >= 2, "FPGA-safe 8x8 matmul uses one read source and one write source")
+  require(softmaxFracPrecision >= log2Ceil(lutEntries) - 1, "softmax frac precision too small for LUT indexing")
 
   val aBuf = Reg(Vec(maxK, UInt(cacheDataBits.W)))
   val bBuf = Reg(Vec(maxK, UInt(cacheDataBits.W)))
   val accum = RegInit(VecInit(Seq.fill(nRows)(VecInit(Seq.fill(nCols)(0.S(accumPrec.W))))))
   val packedStoreWords = Reg(Vec(outputWordCount, UInt(xLen.W)))
+  val softRowIdx = RegInit(0.U(rowIdxWidth.W))
+  val softLatchedScores = Reg(Vec(nCols, UInt(precision.W)))
+  val softRowMax = RegInit(minBf16)
+  val softInvSum = RegInit(0.U(softBitWidth.W))
+
+  val softVecMax = Module(new BFloat16VectorMax(nCols))
+  val softVecSubs = Seq.fill(nCols)(Module(new BFloat16Sub))
+  val softVecExps = Seq.fill(nCols)(Module(new BFloat16Exp))
+  val softVecFixedPs = Seq.fill(nCols)(Module(new BFloat16ToFixed(softmaxIntPrecision, softmaxFracPrecision)))
+  val softVecNormOut = Seq.fill(nCols)(Module(new UIntFixedToBFloat16(softBitWidth, softmaxFracPrecision)))
+  val softVecFixed = Wire(Vec(nCols, UInt(softBitWidth.W)))
+  val softVecNormFixed = Wire(Vec(nCols, UInt(softBitWidth.W)))
+  val softProbBf16 = Wire(Vec(nCols, UInt(precision.W)))
+
+  softVecMax.io.in := softLatchedScores.asUInt
+  for (i <- 0 until nCols) {
+    softVecSubs(i).io.in_1 := softLatchedScores(i)
+    softVecSubs(i).io.in_2 := softRowMax
+    softVecExps(i).io.in := softVecSubs(i).io.out
+    softVecFixedPs(i).io.in := softVecExps(i).io.out
+    softVecFixed(i) := softVecFixedPs(i).io.out
+
+    val normFull = softVecFixed(i) * softInvSum
+    softVecNormFixed(i) := (normFull >> softmaxFracPrecision)(softBitWidth - 1, 0)
+    softVecNormOut(i).io.in := softVecNormFixed(i)
+    softProbBf16(i) := softVecNormOut(i).io.out
+  }
+
+  val softVecSum = softVecFixed.reduceTree(_ + _)
+  val softLutIndexBits = log2Ceil(lutEntries)
+  val softLut = VecInit(Seq.tabulate(lutEntries) { i =>
+    val mant = BigDecimal(1) + (BigDecimal(i) + BigDecimal(0.5)) / BigDecimal(lutEntries)
+    val recip = BigDecimal(1) / mant
+    val scaled = (recip * BigDecimal(2).pow(lutBits - 1)).setScale(0, RoundingMode.HALF_UP).toBigInt
+    scaled.U(lutBits.W)
+  })
+  val softSumNonZero = softVecSum.orR
+  val softMsb = (softBitWidth - 1).U - PriorityEncoder(Reverse(softVecSum))
+  val softShift = Mux(softSumNonZero, softMsb - softmaxFracPrecision.U, 0.U)
+  val softMant = softVecSum >> softShift
+  val softLutIndex = softMant(softmaxFracPrecision, softmaxFracPrecision - softLutIndexBits + 1)
+  val softLutVal = softLut(softLutIndex)
+  val softScaleDown = lutBits - 1 - softmaxFracPrecision
+  val softLutScaled =
+    if (softScaleDown >= 0) (softLutVal >> softScaleDown) else (softLutVal << (-softScaleDown))
+  val softInvRaw = softLutScaled >> softShift
+  val softInvSumCandidate = Mux(softSumNonZero, softInvRaw.pad(softBitWidth)(softBitWidth - 1, 0), 0.U)
 
   val aBase = RegInit(0.U(xLen.W))
   val bBase = RegInit(0.U(xLen.W))
@@ -578,7 +636,8 @@ class SystolicArrayFpgaSafe8x8Impl(
   val respData = RegInit(0.U(xLen.W))
 
   val (s_idle :: s_req_fill_b :: s_wait_fill_b :: s_req_fill_a :: s_wait_fill_a ::
-    s_compute :: s_quantize :: s_req_put :: s_wait_put :: s_resp :: Nil) = Enum(10)
+    s_compute :: s_softmax_load :: s_softmax_max :: s_softmax_sum :: s_softmax_norm ::
+    s_quantize :: s_req_put :: s_wait_put :: s_resp :: Nil) = Enum(14)
   val state = RegInit(s_idle)
 
   private val numPerfCounters = 15
@@ -728,6 +787,7 @@ class SystolicArrayFpgaSafe8x8Impl(
       fillIdx := 0.U
       computeIdx := 0.U
       outIdx := 0.U
+      softRowIdx := 0.U
       bFillForRun := true.B
       bCacheValid := false.B
       for (r <- 0 until nRows) {
@@ -736,7 +796,12 @@ class SystolicArrayFpgaSafe8x8Impl(
         }
       }
       respData := Mux(!configured, 1.U, Mux(requestedK > maxK.U, 2.U, 0.U))
-      state := Mux(!configured || requestedK > maxK.U, s_resp, Mux(requestedK === 0.U, s_quantize, s_req_fill_b))
+      val doneState = if (applyRowSoftmax) s_softmax_load else s_quantize
+      state := Mux(
+        !configured || requestedK > maxK.U,
+        s_resp,
+        Mux(requestedK === 0.U, doneState, s_req_fill_b)
+      )
     }.elsewhen(funct === 3.U) {
       incPreloadCmd := true.B
       val requestedK = io.cmd.bits.rs2
@@ -757,13 +822,19 @@ class SystolicArrayFpgaSafe8x8Impl(
       fillIdx := 0.U
       computeIdx := 0.U
       outIdx := 0.U
+      softRowIdx := 0.U
       for (r <- 0 until nRows) {
         for (c <- 0 until nCols) {
           accum(r)(c) := 0.S
         }
       }
       respData := Mux(!bCacheValid, 3.U, 0.U)
-      state := Mux(!bCacheValid, s_resp, Mux(bCacheK === 0.U, s_quantize, s_req_fill_a))
+      val doneState = if (applyRowSoftmax) s_softmax_load else s_quantize
+      state := Mux(
+        !bCacheValid,
+        s_resp,
+        Mux(bCacheK === 0.U, doneState, s_req_fill_a)
+      )
     }.elsewhen(funct === 2.U) {
       respData := Cat(0.U((xLen - 2).W), state =/= s_idle, state === s_resp)
       state := s_resp
@@ -850,9 +921,49 @@ class SystolicArrayFpgaSafe8x8Impl(
       }
     }
     when(computeIdx + 1.U >= totalK) {
-      state := s_quantize
+      if (applyRowSoftmax) {
+        state := s_softmax_load
+      } else {
+        state := s_quantize
+      }
     }.otherwise {
       computeIdx := computeIdx + 1.U
+    }
+  }
+
+  when(state === s_softmax_load) {
+    for (c <- 0 until nCols) {
+      softLatchedScores(c) := bf16Out(softRowIdx * nCols.U + c.U)
+    }
+    state := s_softmax_max
+  }
+
+  when(state === s_softmax_max) {
+    softRowMax := softVecMax.io.out
+    state := s_softmax_sum
+  }
+
+  when(state === s_softmax_sum) {
+    softInvSum := softInvSumCandidate
+    state := s_softmax_norm
+  }
+
+  when(state === s_softmax_norm) {
+    val rowWordBase = softRowIdx << 1
+    val lo = Wire(Vec(4, UInt(precision.W)))
+    val hi = Wire(Vec(4, UInt(precision.W)))
+    for (i <- 0 until 4) {
+      lo(i) := softProbBf16(i)
+      hi(i) := softProbBf16(i + 4)
+    }
+    packedStoreWords(rowWordBase) := lo.asUInt
+    packedStoreWords(rowWordBase + 1.U) := hi.asUInt
+    when(softRowIdx + 1.U >= nRows.U) {
+      outIdx := 0.U
+      state := s_req_put
+    }.otherwise {
+      softRowIdx := softRowIdx + 1.U
+      state := s_softmax_load
     }
   }
 
@@ -951,12 +1062,16 @@ class SystolicArrayFpgaSafe8x8RoCC(
   val maxK: Int = 256,
   val fixedPointFracBits: Int = 8,
   val accumBits: Int = 64,
-  val numTLSourceIds: Int = 2
+  val numTLSourceIds: Int = 2,
+  val applyRowSoftmax: Boolean = false,
+  val softmaxIntPrecision: Int = 12,
+  val softmaxFracPrecision: Int = 20,
+  val clientName: String = "SystolicArrayFpgaSafe8x8RoCC"
 )(implicit p: Parameters) extends LazyRoCC(opcodes) {
   override lazy val module = new SystolicArrayFpgaSafe8x8Impl(this)
   override val atlNode = TLClientNode(
     Seq(TLMasterPortParameters.v1(Seq(TLMasterParameters.v1(
-      name = "SystolicArrayFpgaSafe8x8RoCC",
+      name = clientName,
       sourceId = IdRange(0, numTLSourceIds)
     ))))
   )

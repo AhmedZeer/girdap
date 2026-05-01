@@ -58,6 +58,21 @@ MatmulAccel8x8BF16FpgaSafe:
   metasim_customruntimeconfig: null
   bit_builder_recipe: bit-builder-recipes/f2.yaml
 
+FusedMatmulSoftmax8x8BF16FpgaSafe:
+  PLATFORM: f2
+  TARGET_PROJECT: firesim
+  TARGET_PROJECT_MAKEFRAG: ../../../generators/firechip/chip/src/main/makefrag/firesim
+  DESIGN: FireSim
+  TARGET_CONFIG: WithDefaultFireSimBridges_WithFireSimConfigTweaks_chipyard.FusedMatmulSoftmax8x8BF16FpgaSafeConfig
+  PLATFORM_CONFIG: BaseF2Config
+  deploy_quintuplet: null
+  platform_config_args:
+      fpga_frequency: 10
+      build_strategy: TIMING
+  post_build_hook: null
+  metasim_customruntimeconfig: null
+  bit_builder_recipe: bit-builder-recipes/f2.yaml
+
 MatmulAccel4x4WSBF16v7_testchip:
   PLATFORM: f2
   TARGET_PROJECT: firesim
