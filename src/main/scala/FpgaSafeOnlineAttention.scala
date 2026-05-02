@@ -38,6 +38,10 @@ class FpgaSafeOnlineAttention8x8Impl(
   private val rowCountWidth = log2Ceil(nRows + 1)
   private val colCountWidth = log2Ceil(nCols + 1)
   private val tileBaseWidth = log2Ceil(maxK + nCols + 1)
+  private val scoreRowIdxWidth = log2Ceil(nRows)
+  private val scoreTiles = maxK / nCols
+  private val scoreTileIdxWidth = log2Ceil(scoreTiles)
+  private val scoreBankAddrWidth = log2Ceil(nRows * scoreTiles)
   private val outCount = nRows * nCols
   private val outputElemsPerWord = xLen / precision
   private val outputWordCount = (outCount + outputElemsPerWord - 1) / outputElemsPerWord
@@ -61,6 +65,8 @@ class FpgaSafeOnlineAttention8x8Impl(
   require(accumPrec <= xLen, "accumulator must fit in xLen for software-visible counters")
   require(tlSourceIds >= 2, "one read source and one write source are required")
   require(softmaxFracPrecision >= log2Ceil(lutEntries) - 1, "softmax frac precision too small")
+  require(maxK % nCols == 0, "score cache banking expects full-width KV tiles")
+  require(isPow2(scoreTiles), "score cache banking expects power-of-two tile count")
 
   private val qBuf = Reg(Vec(maxK, UInt(cacheDataBits.W)))
   private val kBuf = Reg(Vec(maxK, UInt(cacheDataBits.W)))
@@ -69,6 +75,7 @@ class FpgaSafeOnlineAttention8x8Impl(
   private val outAccum = RegInit(VecInit(Seq.fill(nRows)(VecInit(Seq.fill(nCols)(0.S(accumPrec.W))))))
   private val rowMax = RegInit(VecInit(Seq.fill(nRows)(minBf16)))
   private val rowDenom = RegInit(VecInit(Seq.fill(nRows)(0.U(softBitWidth.W))))
+  private val scoreBanks = Seq.fill(nCols)(SyncReadMem(nRows * scoreTiles, UInt(precision.W)))
   private val packedStoreWords = Reg(Vec(outputWordCount, UInt(xLen.W)))
 
   private val qBase = RegInit(0.U(xLen.W))
@@ -109,7 +116,7 @@ class FpgaSafeOnlineAttention8x8Impl(
   private val s_wait_fill_k2 = states(12)
   private val s_req_fill_v = states(13)
   private val s_wait_fill_v = states(14)
-  private val s_clear_scores2 = states(15)
+  private val s_p2_score_latch = states(15)
   private val s_compute_scores2 = states(16)
   private val s_p2_row_load = states(17)
   private val s_p2_row_accum = states(18)
@@ -138,6 +145,16 @@ class FpgaSafeOnlineAttention8x8Impl(
   private def kTileAddr(base: UInt, tileBase: UInt, idx: UInt): UInt =
     base + ((tileBase >> log2Ceil(nCols)) * dK.pad(xLen) + idx.pad(xLen)) * beatBytes.U
   private def wordAddr(base: UInt, idx: UInt): UInt = base + idx * xlenBytes.U
+  private def scoreBankAddr(row: UInt, tileBase: UInt): UInt = {
+    val tileIdx = tileBase(tileBaseWidth - 1, log2Ceil(nCols))
+    Cat(row(scoreRowIdxWidth - 1, 0), tileIdx(scoreTileIdxWidth - 1, 0))(scoreBankAddrWidth - 1, 0)
+  }
+
+  private val scoreReadAddr = scoreBankAddr(softRowIdx, kvTileBase)
+  private val scoreReadData = Wire(Vec(nCols, UInt(precision.W)))
+  for (c <- 0 until nCols) {
+    scoreReadData(c) := scoreBanks(c).read(scoreReadAddr, state === s_p2_row_load)
+  }
 
   private val beatLgSize = beatOffsetBits.U
   private val getQBits = edgesOut.Get(readTlSourceId.U, beatAddr(qBase, fillIdx), beatLgSize)._2
@@ -416,7 +433,10 @@ class FpgaSafeOnlineAttention8x8Impl(
     val remaining = kvRows.pad(tileBaseWidth) - kvTileBase
     activeKvCols := Mux(remaining > nCols.U, nCols.U, remaining)(colCountWidth - 1, 0)
     fillIdx := 0.U
-    state := Mux(state === s_p1_setup_tile, s_req_fill_k, s_req_fill_k2)
+    when(state === s_p2_setup_tile) {
+      softRowIdx := 0.U
+    }
+    state := Mux(state === s_p1_setup_tile, s_req_fill_k, s_req_fill_v)
   }
 
   when(state === s_req_fill_k || state === s_req_fill_k2) {
@@ -463,7 +483,7 @@ class FpgaSafeOnlineAttention8x8Impl(
       when(nextIdx >= activeKvCols) {
         fillIdx := 0.U
         computeIdx := 0.U
-        state := s_clear_scores2
+        state := s_p2_row_load
       }.otherwise {
         fillIdx := nextIdx
         state := s_req_fill_v
@@ -471,17 +491,17 @@ class FpgaSafeOnlineAttention8x8Impl(
     }
   }
 
-  when(state === s_clear_scores || state === s_clear_scores2) {
+  when(state === s_clear_scores) {
     for (r <- 0 until nRows) {
       for (c <- 0 until nCols) {
         scoreAccum(r)(c) := 0.S
       }
     }
     computeIdx := 0.U
-    state := Mux(state === s_clear_scores, s_compute_scores, s_compute_scores2)
+    state := s_compute_scores
   }
 
-  when(state === s_compute_scores || state === s_compute_scores2) {
+  when(state === s_compute_scores) {
     for (r <- 0 until nRows) {
       for (c <- 0 until nCols) {
         val product = qFixed(r).io.out * kFixed(c).io.out
@@ -491,21 +511,39 @@ class FpgaSafeOnlineAttention8x8Impl(
     }
     when(computeIdx + 1.U >= dK) {
       softRowIdx := 0.U
-      state := Mux(state === s_compute_scores, s_p1_row_load, s_p2_row_load)
+      state := s_p1_row_load
     }.otherwise {
       computeIdx := computeIdx + 1.U
     }
   }
 
-  when(state === s_p1_row_load || state === s_p2_row_load) {
+  when(state === s_p1_row_load) {
     for (c <- 0 until nCols) {
       softLatchedScores(c) := scoreBf16(softRowIdx)(c)
     }
-    state := Mux(state === s_p1_row_load, s_p1_row_update, s_p2_row_accum)
+    state := s_p1_row_update
+  }
+
+  when(state === s_p2_row_load) {
+    state := s_p2_score_latch
+  }
+
+  when(state === s_p2_score_latch) {
+    for (c <- 0 until nCols) {
+      softLatchedScores(c) := Mux(c.U < activeKvCols, scoreReadData(c), minBf16)
+    }
+    state := s_p2_row_accum
   }
 
   when(state === s_p1_row_update) {
     when(softRowIdx < qRows) {
+      val writeAddr = scoreBankAddr(softRowIdx, kvTileBase)
+      for (c <- 0 until nCols) {
+        val scoreIdx = kvTileBase + c.U
+        when(c.U < activeKvCols && scoreIdx < kvRows) {
+          scoreBanks(c).write(writeAddr, softLatchedScores(c))
+        }
+      }
       rowMax(softRowIdx) := softGlobalMax.io.out
       rowDenom(softRowIdx) := softDenomNext
     }
@@ -598,7 +636,7 @@ class FpgaSafeOnlineAttention8x8Impl(
     when(incRun) { perfCounters(1) := perfCounters(1) + 1.U }
     when(incTLRead) { perfCounters(2) := perfCounters(2) + 1.U }
     when(incTLWrite) { perfCounters(3) := perfCounters(3) + 1.U }
-    when(state === s_compute_scores || state === s_compute_scores2) { perfCounters(4) := perfCounters(4) + 1.U }
+    when(state === s_compute_scores) { perfCounters(4) := perfCounters(4) + 1.U }
     when(state === s_p1_row_update) { perfCounters(5) := perfCounters(5) + 1.U }
     when(state === s_p2_row_accum) { perfCounters(6) := perfCounters(6) + 1.U }
     when(state === s_wait_fill_q) { perfCounters(7) := perfCounters(7) + 1.U }

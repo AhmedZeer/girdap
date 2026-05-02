@@ -113,7 +113,7 @@ int main(void) {
 
   srand(17);
   printf("=== FPGA-Safe 8x8 Online Attention BF16 Test ===\n");
-  printf("CSV_HEADER,case,q_rows,kv_rows,d_k,value_cols,hw_rc,hw_cycles,max_abs_diff_x100000,mismatches\n");
+  printf("CSV_HEADER,case,q_rows,kv_rows,d_k,value_cols,sw_cycles,hw_total_cycles,hw_accel_cycles,hw_rc,speedup_x100,max_abs_diff_x100000,mismatches\n");
 
   int total_mismatches = 0;
   for (int t = 0; t < ntests; t++) {
@@ -142,7 +142,9 @@ int main(void) {
       }
     }
 
+    const uint64_t sw_start = ws_read_cycles();
     sw_attention_reference(tc.q_rows, tc.kv_rows, tc.d_k, tc.value_cols, scale);
+    const uint64_t sw_cycles = ws_read_cycles() - sw_start;
 
     fpga_safe_attention_stats_t stats;
     const int hw_rc = fpga_safe_attention_bf16(
@@ -191,19 +193,27 @@ int main(void) {
     }
 
     total_mismatches += mismatches;
-    printf("CSV_DATA,%d,%d,%d,%d,%d,%d,%lu,%lu,%d\n",
+    const uint64_t hw_total_cycles =
+        stats.q_pack_cycles +
+        stats.k_pack_cycles +
+        stats.v_pack_cycles +
+        stats.hw_e2e_cycles +
+        stats.copy_out_cycles;
+    const uint64_t speedup_x100 =
+        hw_total_cycles == 0 ? 0 : (sw_cycles * 100u) / hw_total_cycles;
+    printf("CSV_DATA,%d,%d,%d,%d,%d,%lu,%lu,%lu,%d,%lu,%lu,%d\n",
            t,
            tc.q_rows,
            tc.kv_rows,
            tc.d_k,
            tc.value_cols,
-           hw_rc,
+           (unsigned long)sw_cycles,
+           (unsigned long)hw_total_cycles,
            (unsigned long)stats.hw_e2e_cycles,
+           hw_rc,
+           (unsigned long)speedup_x100,
            (unsigned long)(max_abs_diff * 100000.0f),
            mismatches);
-    if (mismatches != 0) {
-      break;
-    }
   }
 
   if (total_mismatches == 0) {
