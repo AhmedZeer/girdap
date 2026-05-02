@@ -1,7 +1,12 @@
 FusedMatmulSoftmax8x8BF16FpgaSafe:
-    agfi: agfi-05da581ad23d1f165
+    agfi: agfi-0bc1f6c731fa58937
     deploy_quintuplet_override: null
     custom_runtime_config: null
+
+# FusedMatmulSoftmax8x8BF16FpgaSafe:
+    # agfi: agfi-05da581ad23d1f165
+    # deploy_quintuplet_override: null
+    # custom_runtime_config: null
 
 MatmulAccel8x8BF16FpgaSafe:
     agfi: agfi-0e0f1c3e371d223e3
