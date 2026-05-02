@@ -524,25 +524,27 @@ class SystolicArrayFpgaSafe8x8Impl(
 
   val cacheParams = tileParams.dcache.get
 
-  private val precision = outer.precision
-  private val nRows = outer.nRows
-  private val nCols = outer.nCols
-  private val maxK = outer.maxK
-  private val fixedPointFracBits = outer.fixedPointFracBits
-  private val accumPrec = outer.accumBits
-  private val tlSourceIds = outer.numTLSourceIds
-  private val applyRowSoftmax = outer.applyRowSoftmax
-  private val softmaxIntPrecision = outer.softmaxIntPrecision
-  private val softmaxFracPrecision = outer.softmaxFracPrecision
+  private val precision = outer.precision // 16
+  private val nRows = outer.nRows // 8
+  private val nCols = outer.nCols // 8
+  private val maxK = outer.maxK // 256
+  private val fixedPointFracBits = outer.fixedPointFracBits // 8
+  private val accumPrec = outer.accumBits // 64, keeps it simple for the ABI.
+  private val tlSourceIds = outer.numTLSourceIds // 2, tags for different mem transactions
+  private val applyRowSoftmax = outer.applyRowSoftmax // true, matmul or softmax
+  private val softmaxIntPrecision = outer.softmaxIntPrecision // 12, Output data int prec
+  private val softmaxFracPrecision = outer.softmaxFracPrecision // 20, Output data frac prec
   private val softBitWidth = softmaxIntPrecision + softmaxFracPrecision
-  private val lutEntries = 256
-  private val lutBits = 64
-  private val minBf16 = "hFF80".U(16.W)
-  private val scoreFracBits = 2 * fixedPointFracBits
+  private val lutEntries = 256 // Range of possible reciprocals
+  private val lutBits = 64 // Precision of each reciprocal
+  private val minBf16 = "hFF80".U(16.W) // -inf
+
+  // sqrt(1/d_k)
+  private val scoreFracBits = 2 * fixedPointFracBits // 16
   private val scoreScaleIntBits = 8
 
-  private val kWidth = log2Ceil(maxK + 1)
-  private val outCount = nRows * nCols
+  private val kWidth = log2Ceil(maxK + 1) // 9, at which common dim
+  private val outCount = nRows * nCols // 256, 16 * 16
   private val outputElemsPerWord = xLen / precision
   private val outputWordCount = (outCount + outputElemsPerWord - 1) / outputElemsPerWord
   private val outIdxWidth = log2Ceil(outputWordCount + 1)
