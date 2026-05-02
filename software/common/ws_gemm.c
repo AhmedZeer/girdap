@@ -1508,6 +1508,7 @@ int ws_gemm8_matmul_softmax_tile_bf16(
     int M,
     int N,
     int K,
+    uint16_t scale_bf16,
     const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
     ws_gemm_stats_t *WS_GEMM_RESTRICT stats) {
   ws_gemm_clear_stats(stats);
@@ -1526,6 +1527,8 @@ int ws_gemm8_matmul_softmax_tile_bf16(
     ws_sa_clear_counters();
   }
   const uint64_t total_start = measure ? ws_read_cycles() : 0;
+
+  (void)ws_sa_set_scale_bf16(scale_bf16);
 
   const int pack_b_rc = ws_gemm8_pack_b_bf16(
       B,

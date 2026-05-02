@@ -14,6 +14,7 @@
 #define SA_FUNCT_READ_COUNTER 4
 #define SA_FUNCT_CLEAR_COUNTERS 5
 #define SA_FUNCT_RUN_PRELOADED 6
+#define SA_FUNCT_SET_SCALE_BF16 7
 
 enum {
   WS_PERF_BUSY_CYCLES = 0,
@@ -92,6 +93,14 @@ static inline uint64_t ws_sa_preload_weights(const uint64_t *b_stream, uint64_t 
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
   ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, b_stream, k, SA_FUNCT_PRELOAD_WEIGHTS);
+  asm volatile("fence rw, rw" ::: "memory");
+  return rd;
+}
+
+static inline uint64_t ws_sa_set_scale_bf16(uint16_t scale_bf16) {
+  uint64_t rd = 0;
+  asm volatile("fence rw, rw" ::: "memory");
+  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, (uint64_t)scale_bf16, 0, SA_FUNCT_SET_SCALE_BF16);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }

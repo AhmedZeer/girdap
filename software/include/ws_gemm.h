@@ -415,6 +415,7 @@ int ws_gemm8_matmul_softmax_tile_bf16(
     int M,
     int N,
     int K,
+    uint16_t scale_bf16,
     const ws_gemm_workspace_t *WS_GEMM_RESTRICT workspace,
     ws_gemm_stats_t *WS_GEMM_RESTRICT stats);
 

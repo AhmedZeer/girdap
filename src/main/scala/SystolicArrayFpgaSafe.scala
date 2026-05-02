@@ -538,6 +538,8 @@ class SystolicArrayFpgaSafe8x8Impl(
   private val lutEntries = 256
   private val lutBits = 64
   private val minBf16 = "hFF80".U(16.W)
+  private val scoreFracBits = 2 * fixedPointFracBits
+  private val scoreScaleIntBits = 8
 
   private val kWidth = log2Ceil(maxK + 1)
   private val outCount = nRows * nCols
@@ -576,6 +578,7 @@ class SystolicArrayFpgaSafe8x8Impl(
   val softLatchedScores = Reg(Vec(nCols, UInt(precision.W)))
   val softRowMax = RegInit(minBf16)
   val softInvSum = RegInit(0.U(softBitWidth.W))
+  val scoreScaleBf16 = RegInit("h3F80".U(precision.W))
 
   val softVecMax = Module(new BFloat16VectorMax(nCols))
   val softVecSubs = Seq.fill(nCols)(Module(new BFloat16Sub))
@@ -619,6 +622,10 @@ class SystolicArrayFpgaSafe8x8Impl(
     if (softScaleDown >= 0) (softLutVal >> softScaleDown) else (softLutVal << (-softScaleDown))
   val softInvRaw = softLutScaled >> softShift
   val softInvSumCandidate = Mux(softSumNonZero, softInvRaw.pad(softBitWidth)(softBitWidth - 1, 0), 0.U)
+
+  val scoreScaleConv = Module(new BFloat16ToSIntFixed(scoreScaleIntBits, scoreFracBits))
+  scoreScaleConv.io.in := scoreScaleBf16
+  val scoreScaleFixed = scoreScaleConv.io.out
 
   val aBase = RegInit(0.U(xLen.W))
   val bBase = RegInit(0.U(xLen.W))
@@ -739,7 +746,15 @@ class SystolicArrayFpgaSafe8x8Impl(
   for (r <- 0 until nRows) {
     for (c <- 0 until nCols) {
       val conv = Module(new SIntFixedToBFloat16(accumPrec, 2 * fixedPointFracBits))
-      conv.io.in := accum(r)(c)
+      val scoreForConv = Wire(SInt(accumPrec.W))
+      if (applyRowSoftmax) {
+        val scaledWide = (accum(r)(c) * scoreScaleFixed).asSInt
+        val scaledShifted = (scaledWide >> scoreFracBits).asSInt
+        scoreForConv := scaledShifted(accumPrec - 1, 0).asSInt
+      } else {
+        scoreForConv := accum(r)(c)
+      }
+      conv.io.in := scoreForConv
       bf16Out(r * nCols + c) := conv.io.out
     }
   }
@@ -849,6 +864,10 @@ class SystolicArrayFpgaSafe8x8Impl(
       state := s_resp
     }.elsewhen(funct === 5.U) {
       clearPerfCounters := true.B
+      respData := 0.U
+      state := s_resp
+    }.elsewhen(funct === 7.U) {
+      scoreScaleBf16 := io.cmd.bits.rs1(precision - 1, 0)
       respData := 0.U
       state := s_resp
     }.otherwise {

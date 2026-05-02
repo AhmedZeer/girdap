@@ -28,7 +28,40 @@ static float rand_float_bf16_range(void) {
   return ((float)rand() / (float)RAND_MAX) * 4.0f - 2.0f;
 }
 
-static void sw_score_tile_fixed(int K) {
+static int64_t bf16_to_fixed_s64_sat_local(uint16_t value, int int_bits, int frac_bits) {
+  const int total_bits = int_bits + frac_bits;
+  const uint32_t sign = (uint32_t)(value >> 15);
+  const uint32_t exp = (uint32_t)((value >> 7) & 0xFFu);
+  const uint32_t mantissa = (uint32_t)(value & 0x7Fu);
+
+  if ((value & 0x7FFFu) == 0) {
+    return 0;
+  }
+
+  const uint32_t ext_mantissa = (exp == 0u) ? mantissa : (0x80u | mantissa);
+  const int shift_amt = (((exp == 0u) ? 1 : (int)exp) - 127) - 7 + frac_bits;
+
+  uint64_t shifted_mag;
+  if (shift_amt >= 0) {
+    shifted_mag = (shift_amt >= 63) ? UINT64_MAX : ((uint64_t)ext_mantissa << shift_amt);
+  } else {
+    const int right_shift = -shift_amt;
+    shifted_mag = (right_shift >= 64) ? 0u : ((uint64_t)ext_mantissa >> right_shift);
+  }
+
+  const uint64_t max_pos = (1ULL << (total_bits - 1)) - 1ULL;
+  const uint64_t max_neg = 1ULL << (total_bits - 1);
+  if (sign == 0u) {
+    return (int64_t)(shifted_mag > max_pos ? max_pos : shifted_mag);
+  }
+  const uint64_t mag = shifted_mag > max_neg ? max_neg : shifted_mag;
+  return -(int64_t)mag;
+}
+
+static void sw_score_tile_fixed(int K, uint16_t scale_bf16) {
+  const int64_t scale_fixed =
+      bf16_to_fixed_s64_sat_local(scale_bf16, 8, WS_GEMM_BF16_ACC_FRAC_BITS);
+
   for (int i = 0; i < TILE_M; i++) {
     for (int j = 0; j < TILE_N; j++) {
       int64_t acc = 0;
@@ -38,7 +71,8 @@ static void sw_score_tile_fixed(int K) {
         acc += (int64_t)a_fixed * (int64_t)b_fixed;
       }
       scores_fixed[i][j] = acc;
-      scores_bf16[i][j] = fixed_s64_to_bf16_sat(acc, WS_GEMM_BF16_ACC_FRAC_BITS);
+      const int64_t scaled_acc = (acc * scale_fixed) >> WS_GEMM_BF16_ACC_FRAC_BITS;
+      scores_bf16[i][j] = fixed_s64_to_bf16_sat(scaled_acc, WS_GEMM_BF16_ACC_FRAC_BITS);
     }
   }
 }
@@ -84,6 +118,8 @@ int main(void) {
   int total_mismatches = 0;
   for (int t = 0; t < ntests; t++) {
     const int K = tests[t].K;
+    const float inv_sqrt_k = 1.0f / sqrtf((float)K);
+    const uint16_t scale_bf16 = float_to_bf16(inv_sqrt_k);
     ws_gemm_stats_t stats;
 
     for (int i = 0; i < TILE_M; i++) {
@@ -98,7 +134,7 @@ int main(void) {
     }
 
     const uint64_t sw_start = ws_read_cycles();
-    sw_score_tile_fixed(K);
+    sw_score_tile_fixed(K, scale_bf16);
     sw_softmax_scores_bf16();
     const uint64_t sw_cycles = ws_read_cycles() - sw_start;
 
@@ -107,6 +143,7 @@ int main(void) {
         &B[0][0], TILE_N,
         &C_hw[0][0], TILE_N,
         TILE_M, TILE_N, K,
+        scale_bf16,
         &workspace,
         &stats);
 
