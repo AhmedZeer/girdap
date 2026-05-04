@@ -1,5 +1,5 @@
 FusedOnlineAttention8x8BF16FpgaSafePacker:
-    agfi: agfi-01295220b7d1b16a6
+    agfi: agfi-01ebbc26d6edf3b03 #agfi-01295220b7d1b16a6
     deploy_quintuplet_override: null
     custom_runtime_config: null
 
