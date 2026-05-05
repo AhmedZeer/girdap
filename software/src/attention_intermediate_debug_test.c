@@ -125,10 +125,17 @@ static int compare_outputs(
       }
       if ((uint32_t)(diff * 100000.0f) > tc->output_tolerance_x100000) {
         if (mismatches < 8) {
+          double replay = 0.0;
+          for (int kv = 0; kv < tc->kv_rows; kv++) {
+            replay += prob_fixed_to_double(hw_prob_fixed[r][kv]) *
+                      (double)bf16_to_float(tc->v[kv * tc->value_cols + c]);
+          }
           printf("OutputMismatch case=%s row=%d col=%d ref=", tc->name, r, c);
           print_float_inline(ref);
           printf("hw=");
           print_float_inline(hw);
+          printf("replay_hw_prob=");
+          print_float_inline((float)replay);
           printf("diff=");
           print_float_inline(diff);
           printf("\n");
