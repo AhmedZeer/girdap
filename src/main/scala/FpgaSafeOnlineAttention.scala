@@ -114,9 +114,7 @@ class FpgaSafeOnlineAttention8x8Impl(
   private val applyAfterScores = RegInit(true.B)
   private val packConfigured = RegInit(false.B)
   private val packDimsConfigured = RegInit(false.B)
-  private val debugScoreBase = RegInit(0.U(xLen.W))
-  private val debugProbBase = RegInit(0.U(xLen.W))
-  private val debugConfigured = RegInit(false.B)
+  private val debugReadProb = RegInit(false.B)
 
   private val fillIdx = RegInit(0.U(kWidth.W))
   private val computeIdx = RegInit(0.U(kWidth.W))
@@ -141,9 +139,8 @@ class FpgaSafeOnlineAttention8x8Impl(
   private val packModeRowMajorTiles = 0.U(2.W)
   private val packModeColumnTiles = 1.U(2.W)
   private val debugLane = RegInit(0.U(log2Ceil(nCols).W))
-  private val debugWriteIsProb = RegInit(false.B)
 
-  private val states = Enum(35)
+  private val states = Enum(31)
   private val s_idle = states(0)
   private val s_req_fill_q = states(1)
   private val s_wait_fill_q = states(2)
@@ -172,13 +169,9 @@ class FpgaSafeOnlineAttention8x8Impl(
   private val s_pack_wait_read = states(25)
   private val s_pack_req_put = states(26)
   private val s_pack_wait_put = states(27)
-  private val s_dbg_setup_tile = states(28)
-  private val s_dbg_score_load = states(29)
-  private val s_dbg_score_latch = states(30)
-  private val s_dbg_score_put = states(31)
-  private val s_dbg_score_wait_put = states(32)
-  private val s_dbg_prob_put = states(33)
-  private val s_dbg_prob_wait_put = states(34)
+  private val s_dbg_score_load = states(28)
+  private val s_dbg_score_latch = states(29)
+  private val s_dbg_prob_put = states(30)
   private val state = RegInit(s_idle)
 
   private val numPerfCounters = 12
@@ -268,15 +261,6 @@ class FpgaSafeOnlineAttention8x8Impl(
     packLaneData.asUInt.pad(cacheDataBits),
     Fill(beatBytes, 1.U(1.W))
   )._2
-
-  private val debugElemIdx =
-    softRowIdx.pad(xLen) * kvRows.pad(xLen) + (kvTileBase + debugLane.pad(tileBaseWidth)).pad(xLen)
-  private val debugWriteBase = Mux(debugWriteIsProb, debugProbBase, debugScoreBase)
-  private val debugWriteAddr = debugWriteBase + debugElemIdx * xlenBytes.U
-  private val debugWriteLane = debugWriteAddr(beatOffsetBits - 1, log2Ceil(xlenBytes))
-  private val debugWriteBeatAddr = debugWriteAddr & ~((beatBytes - 1).U(xLen.W))
-  private val debugPutDataWords = Wire(Vec(wordsPerBeat, UInt(xLen.W)))
-  private val debugPutMaskBytes = Wire(Vec(beatBytes, Bool()))
 
   private def laneFromBeat(beat: UInt, lane: Int): UInt =
     beat(precision * (lane + 1) - 1, precision * lane)
@@ -392,21 +376,6 @@ class FpgaSafeOnlineAttention8x8Impl(
   }
   private val softVecSum = softVecFixed.reduceTree(_ + _)
   private val softDenomNext = softVecSum + softProdDenom
-
-  private val debugWriteData = Mux(debugWriteIsProb, softProbFixed(debugLane), softLatchedScores(debugLane).asUInt)
-  for (w <- 0 until wordsPerBeat) {
-    debugPutDataWords(w) := Mux(w.U(laneWidth.W) === debugWriteLane, debugWriteData, 0.U)
-  }
-  for (byte <- 0 until beatBytes) {
-    debugPutMaskBytes(byte) := (byte / xlenBytes).U(laneWidth.W) === debugWriteLane
-  }
-  private val debugPutBits = edgesOut.Put(
-    writeTlSourceId.U,
-    debugWriteBeatAddr,
-    beatLgSize,
-    debugPutDataWords.asUInt,
-    debugPutMaskBytes.asUInt
-  )._2
 
   private val vFixed = Seq.fill(nCols, nCols)(Module(new BFloat16ToSIntFixed(precision - fixedPointFracBits, fixedPointFracBits)))
   for (kv <- 0 until nCols) {
@@ -605,26 +574,25 @@ class FpgaSafeOnlineAttention8x8Impl(
       }.otherwise {
         state := s_resp
       }
-    }.elsewhen(if (debugEnabled) funct === 18.U else false.B) {
-      debugScoreBase := io.cmd.bits.rs1
-      debugProbBase := io.cmd.bits.rs2
-      debugConfigured := true.B
-      respData := 0.U
-      state := s_resp
-    }.elsewhen(if (debugEnabled) funct === 19.U else false.B) {
+    }.elsewhen(if (debugEnabled) (funct === 18.U || funct === 19.U) else false.B) {
       incRun := true.B
+      val newDebugRow = io.cmd.bits.rs1(15, 0)(rowCountWidth - 1, 0)
+      val newDebugCol = io.cmd.bits.rs1(31, 16)(kWidth - 1, 0)
       val dimsValid =
-        debugConfigured && dimsConfigured && scoresReady &&
+        dimsConfigured && scoresReady &&
           (qRows =/= 0.U) && (qRows <= nRows.U) &&
           (kvRows =/= 0.U) && (kvRows <= maxK.U) &&
-          (dK =/= 0.U) && (dK <= maxK.U)
-      respData := Mux(!debugConfigured || !dimsConfigured, 1.U, Mux(!scoresReady, 3.U, Mux(!dimsValid, 2.U, 0.U)))
+          (dK =/= 0.U) && (dK <= maxK.U) &&
+          (newDebugRow < qRows) && (newDebugCol < kvRows)
+      respData := Mux(!dimsConfigured, 1.U, Mux(!scoresReady, 3.U, Mux(!dimsValid, 2.U, 0.U)))
       when(dimsValid) {
-        kvTileBase := 0.U
-        softRowIdx := 0.U
-        debugLane := 0.U
-        debugWriteIsProb := false.B
-        state := s_dbg_setup_tile
+        val colTileBase = (newDebugCol >> log2Ceil(nCols)) << log2Ceil(nCols)
+        kvTileBase := colTileBase(tileBaseWidth - 1, 0)
+        activeKvCols := nCols.U
+        softRowIdx := newDebugRow
+        debugLane := newDebugCol(log2Ceil(nCols) - 1, 0)
+        debugReadProb := funct === 19.U
+        state := s_dbg_score_load
       }.otherwise {
         state := s_resp
       }
@@ -714,15 +682,6 @@ class FpgaSafeOnlineAttention8x8Impl(
     }
   }
 
-  when(state === s_dbg_setup_tile) {
-    val remaining = kvRows.pad(tileBaseWidth) - kvTileBase
-    activeKvCols := Mux(remaining > nCols.U, nCols.U, remaining)(colCountWidth - 1, 0)
-    softRowIdx := 0.U
-    debugLane := 0.U
-    debugWriteIsProb := false.B
-    state := s_dbg_score_load
-  }
-
   when(state === s_dbg_score_load) {
     state := s_dbg_score_latch
   }
@@ -731,69 +690,12 @@ class FpgaSafeOnlineAttention8x8Impl(
     for (c <- 0 until nCols) {
       softLatchedScores(c) := Mux(c.U < activeKvCols, scoreReadData(c), minScoreFixed)
     }
-    debugLane := 0.U
-    debugWriteIsProb := false.B
-    state := s_dbg_score_put
-  }
-
-  when(state === s_dbg_score_put) {
-    tlOut.a.valid := true.B
-    tlOut.a.bits := debugPutBits
-    when(tlOut.a.fire) {
-      incTLWrite := true.B
-      state := s_dbg_score_wait_put
-    }
-  }
-
-  when(state === s_dbg_score_wait_put) {
-    tlOut.d.ready := true.B
-    when(tlOut.d.fire) {
-      assert(dIsWriteAck && dSource === writeTlSourceId.U, "online attention debug expected score write ack")
-      when(debugLane + 1.U >= activeKvCols) {
-        debugLane := 0.U
-        debugWriteIsProb := true.B
-        state := s_dbg_prob_put
-      }.otherwise {
-        debugLane := debugLane + 1.U
-        state := s_dbg_score_put
-      }
-    }
+    state := s_dbg_prob_put
   }
 
   when(state === s_dbg_prob_put) {
-    tlOut.a.valid := true.B
-    tlOut.a.bits := debugPutBits
-    when(tlOut.a.fire) {
-      incTLWrite := true.B
-      state := s_dbg_prob_wait_put
-    }
-  }
-
-  when(state === s_dbg_prob_wait_put) {
-    tlOut.d.ready := true.B
-    when(tlOut.d.fire) {
-      assert(dIsWriteAck && dSource === writeTlSourceId.U, "online attention debug expected probability write ack")
-      when(debugLane + 1.U >= activeKvCols) {
-        debugLane := 0.U
-        when(softRowIdx + 1.U >= qRows) {
-          val nextTile = kvTileBase + nCols.U
-          when(nextTile >= kvRows) {
-            respData := 0.U
-            state := s_resp
-          }.otherwise {
-            kvTileBase := nextTile
-            state := s_dbg_setup_tile
-          }
-        }.otherwise {
-          softRowIdx := softRowIdx + 1.U
-          debugWriteIsProb := false.B
-          state := s_dbg_score_load
-        }
-      }.otherwise {
-        debugLane := debugLane + 1.U
-        state := s_dbg_prob_put
-      }
-    }
+    respData := Mux(debugReadProb, softProbFixed(debugLane), softLatchedScores(debugLane).asUInt)
+    state := s_resp
   }
 
   when(state === s_req_fill_q) {

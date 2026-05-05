@@ -466,26 +466,17 @@ int fpga_safe_attention_bf16_hwpack_debug_intermediates(
       return FPGA_SAFE_ATTN_ERR_RUN;
     }
 
-    const uint64_t debug_set_rc = ws_attn_debug_set_addrs(
-        score_fixed + m0 * ldintermediate,
-        prob_fixed + m0 * ldintermediate);
-    if (debug_set_rc != 0) {
-      if (measure) {
-        stats->raw_hw_rc = debug_set_rc;
-      }
-      return FPGA_SAFE_ATTN_ERR_RUN;
-    }
-
     const uint64_t debug_start = measure ? ws_read_cycles() : 0;
-    const uint64_t debug_rc = ws_attn_debug_dump_intermediates();
+    for (int r = 0; r < tile_q_rows; r++) {
+      for (int c = 0; c < kv_rows; c++) {
+        score_fixed[(m0 + r) * ldintermediate + c] = ws_attn_debug_read_score(r, c);
+        prob_fixed[(m0 + r) * ldintermediate + c] = ws_attn_debug_read_prob(r, c);
+      }
+    }
     if (measure) {
       const uint64_t debug_cycles = ws_read_cycles() - debug_start;
       stats->debug_dump_cycles += debug_cycles;
       stats->hw_e2e_cycles += debug_cycles;
-      stats->raw_hw_rc = debug_rc;
-    }
-    if (debug_rc != 0) {
-      return FPGA_SAFE_ATTN_ERR_RUN;
     }
 
     for (int n0 = 0; n0 < value_cols; n0 += FPGA_SAFE_ATTN_TILE_COLS) {

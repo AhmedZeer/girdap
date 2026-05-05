@@ -25,8 +25,8 @@
 #define SA_FUNCT_ATTN_PACK_SET_ADDRS 15
 #define SA_FUNCT_ATTN_PACK_SET_DIMS 16
 #define SA_FUNCT_ATTN_PACK_RUN 17
-#define SA_FUNCT_ATTN_DEBUG_SET_ADDRS 18
-#define SA_FUNCT_ATTN_DEBUG_DUMP_INTERMEDIATES 19
+#define SA_FUNCT_ATTN_DEBUG_READ_SCORE 18
+#define SA_FUNCT_ATTN_DEBUG_READ_PROB 19
 
 #define SA_ATTN_PACK_MODE_ROW_MAJOR_TILES 0
 #define SA_ATTN_PACK_MODE_COLUMN_TILES 1
@@ -226,21 +226,24 @@ static inline uint64_t ws_attn_pack_run(void) {
   return rd;
 }
 
-static inline uint64_t ws_attn_debug_set_addrs(
-    int64_t *score_words,
-    uint64_t *prob_words) {
-  uint64_t rd = 0;
-  asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(
-      SA_OPCODE, rd, score_words, prob_words, SA_FUNCT_ATTN_DEBUG_SET_ADDRS);
-  asm volatile("fence rw, rw" ::: "memory");
-  return rd;
+static inline uint64_t ws_attn_debug_pack_index(int row, int col) {
+  return (((uint64_t)(uint16_t)col) << 16) | (uint64_t)(uint16_t)row;
 }
 
-static inline uint64_t ws_attn_debug_dump_intermediates(void) {
+static inline int64_t ws_attn_debug_read_score(int row, int col) {
   uint64_t rd = 0;
+  const uint64_t packed_index = ws_attn_debug_pack_index(row, col);
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, 0, 0, SA_FUNCT_ATTN_DEBUG_DUMP_INTERMEDIATES);
+  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, packed_index, 0, SA_FUNCT_ATTN_DEBUG_READ_SCORE);
+  asm volatile("fence rw, rw" ::: "memory");
+  return (int64_t)rd;
+}
+
+static inline uint64_t ws_attn_debug_read_prob(int row, int col) {
+  uint64_t rd = 0;
+  const uint64_t packed_index = ws_attn_debug_pack_index(row, col);
+  asm volatile("fence rw, rw" ::: "memory");
+  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, packed_index, 0, SA_FUNCT_ATTN_DEBUG_READ_PROB);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
