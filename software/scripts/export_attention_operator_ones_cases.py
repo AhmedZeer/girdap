@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Export PyTorch attention operator cases as linkable C assets."""
+"""Export all-ones PyTorch attention cases as linkable C assets."""
 
 from __future__ import annotations
 
@@ -18,42 +18,24 @@ class AttentionCase:
     kv_rows: int
     d_k: int
     value_cols: int
-    seed: int
-    input_scale: float = 1.0
-    value_scale: float = 1.0
+    value: float = 1.0
     tolerance_x100000: int = 25000
 
 
 DEFAULT_CASES = (
-    AttentionCase("torch_8x8x16x8_s025", 8, 8, 16, 8, 201, 0.25, 0.25),
-    AttentionCase("torch_8x9x16x8_s025", 8, 9, 16, 8, 202, 0.25, 0.25),
-    AttentionCase("torch_8x16x16x8_s025", 8, 16, 16, 8, 203, 0.25, 0.25),
-    AttentionCase("torch_16x16x16x16_s025", 16, 16, 16, 16, 204, 0.25, 0.25),
-    AttentionCase("torch_8x64x64x8_s025", 8, 64, 64, 8, 205, 0.25, 0.25),
-    AttentionCase("torch_8x8x16x8_s05", 8, 8, 16, 8, 211, 0.5, 0.5),
-    AttentionCase("torch_8x9x16x8_s05", 8, 9, 16, 8, 212, 0.5, 0.5),
-    AttentionCase("torch_8x16x16x8_s05", 8, 16, 16, 8, 213, 0.5, 0.5),
-    AttentionCase("torch_16x16x16x16_s05", 16, 16, 16, 16, 214, 0.5, 0.5),
-    AttentionCase("torch_8x64x64x8_s05", 8, 64, 64, 8, 215, 0.5, 0.5),
-    AttentionCase("tiny_sanity", 8, 8, 16, 8, 101),
-    AttentionCase("tiny_sanity_s025", 8, 8, 16, 8, 101, 0.25, 0.25),
-    AttentionCase("tiny_sanity_s05", 8, 8, 16, 8, 101, 0.5, 0.5),
-    AttentionCase("gpt2_decode_tile", 8, 256, 64, 64, 102),
-    AttentionCase("gpt2_decode_tile_s025", 8, 256, 64, 64, 102, 0.25, 0.25),
-    AttentionCase("gpt2_decode_tile_s05", 8, 256, 64, 64, 102, 0.5, 0.5),
-    AttentionCase("gpt2_prefill_tile", 128, 128, 64, 64, 103),
-    AttentionCase("gpt2_prefill_tile_s025", 128, 128, 64, 64, 103, 0.25, 0.25),
-    AttentionCase("gpt2_prefill_tile_s05", 128, 128, 64, 64, 103, 0.5, 0.5),
-    AttentionCase("vit_patch_attention", 197, 197, 64, 64, 104),
-    AttentionCase("vit_patch_attention_s025", 197, 197, 64, 64, 104, 0.25, 0.25),
-    AttentionCase("vit_patch_attention_s05", 197, 197, 64, 64, 104, 0.5, 0.5),
-    AttentionCase("max_shape_stress", 256, 256, 256, 128, 105),
-    AttentionCase("max_shape_stress_s025", 256, 256, 256, 128, 105, 0.25, 0.25),
-    AttentionCase("max_shape_stress_s05", 256, 256, 256, 128, 105, 0.5, 0.5),
+    AttentionCase("ones_8x8x16x8", 8, 8, 16, 8),
+    AttentionCase("ones_8x9x16x8", 8, 9, 16, 8),
+    AttentionCase("ones_8x16x16x8", 8, 16, 16, 8),
+    AttentionCase("ones_16x16x16x16", 16, 16, 16, 16),
+    AttentionCase("ones_8x64x64x8", 8, 64, 64, 8),
+    AttentionCase("ones_gpt2_decode_tile", 8, 256, 64, 64),
+    AttentionCase("ones_gpt2_prefill_tile", 128, 128, 64, 64),
+    AttentionCase("ones_vit_patch_attention", 197, 197, 64, 64),
+    AttentionCase("ones_max_shape_stress", 256, 256, 256, 128),
 )
 
 
-def bf16_bits(tensor) -> list[int]:
+def bf16_bits(tensor: torch.Tensor) -> list[int]:
     bf16 = tensor.detach().to(torch.bfloat16).contiguous().cpu()
     return [int(x) & 0xFFFF for x in bf16.view(torch.int16).reshape(-1).tolist()]
 
@@ -113,12 +95,9 @@ def print_case_samples(case: AttentionCase, data: dict[str, list[int] | int]) ->
 
 
 def make_case(case: AttentionCase):
-    generator = torch.Generator(device="cpu")
-    generator.manual_seed(case.seed)
-
-    q = torch.randn(case.q_rows, case.d_k, generator=generator, dtype=torch.float32) * case.input_scale
-    k = torch.randn(case.kv_rows, case.d_k, generator=generator, dtype=torch.float32) * case.input_scale
-    v = torch.randn(case.kv_rows, case.value_cols, generator=generator, dtype=torch.float32) * case.value_scale
+    q = torch.full((case.q_rows, case.d_k), case.value, dtype=torch.float32)
+    k = torch.full((case.kv_rows, case.d_k), case.value, dtype=torch.float32)
+    v = torch.full((case.kv_rows, case.value_cols), case.value, dtype=torch.float32)
 
     q_bf16 = q.to(torch.bfloat16)
     k_bf16 = k.to(torch.bfloat16)
@@ -226,7 +205,7 @@ def main() -> None:
     )
     args = parser.parse_args()
     write_assets(DEFAULT_CASES, args.out_dir)
-    print(f"wrote attention operator cases to {args.out_dir} using PyTorch backend")
+    print(f"wrote all-ones attention operator cases to {args.out_dir} using PyTorch backend")
 
 
 if __name__ == "__main__":
