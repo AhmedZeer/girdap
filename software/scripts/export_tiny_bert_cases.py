@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+#
+# Copyright 2026
 """Export tiny-BERT inference cases as linkable C assets."""
 
 from __future__ import annotations

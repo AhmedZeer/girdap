@@ -1,3 +1,7 @@
+// SPDX-License-Identifier: Apache-2.0
+//
+// Copyright 2026
+
 #include "bfloat16_utils.h"
 #include "fpga_safe_attention.h"
 #include "generated/tiny_bert_cases.h"

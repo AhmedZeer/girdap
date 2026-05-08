@@ -1,0 +1,15 @@
+ToyRoCC BF16 Matmul/Attention Accelerator Extensions
+
+This subtree contains upstream ToyRoCC material and project-specific BF16
+matmul, attention, debug, and workload extensions.
+
+New accelerator RTL, ABI helpers, software workloads, generated-case exporters,
+FireSim/Chipyard integration glue, and documentation added for this project are
+licensed under the Apache License, Version 2.0. See LICENSE.Apache-2.0.
+
+Files inherited from upstream ToyRoCC, Chipyard, FireSim, Rocket Chip, Gemmini,
+or other third-party projects remain under their original licenses. Those
+licenses are not replaced or superseded by this NOTICE.
+
+This project builds on the Chipyard and FireSim hardware/software ecosystem and
+uses RoCC integration patterns common to Rocket Chip based accelerators.

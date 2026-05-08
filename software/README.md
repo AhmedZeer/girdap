@@ -3,6 +3,13 @@ This repository includes the following:
 * The necessary minimal code to generate a Spike library for extending Spike to support the accelerator and test its functionality.
 * A minimal C code to trigger the accelerator through custom instructions.
 
+### Licensing
+New BF16 matmul, attention, transformer, Tiny-BERT, and related benchmark
+workloads added for this project are licensed under Apache-2.0. See
+`../LICENSE.Apache-2.0` and `../NOTICE`.
+
+Existing upstream ToyRoCC and third-party files keep their original licenses.
+
 ### Layout
 * `src/`: C test and benchmark sources.
 * `build/`: generated `.riscv` and `.dump` artifacts.

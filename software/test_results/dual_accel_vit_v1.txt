@@ -1,0 +1,7 @@
+=== Dual-RoCC Encoder Model Test ===
+OPCODE_INFO,matmul=0,attention=1
+CSV_HEADER,case,name,seq_len,d_model,n_heads,head_dim,hidden_dim,n_layers,cpu_cycles,hw_e2e_cycles,ln_residual_cycles,qkv_proj_cycles,attn_e2e_cycles,attn_accel_cycles,attn_score_cycles,attn_value_cycles,out_proj_cycles,mlp_fc1_cycles,gelu_cycles,mlp_fc2_cycles,hw_rc,raw_hw_rc,speedup_x100,hw_max_abs_diff_x100000,cpu_ref_max_abs_diff_x100000,mismatches
+CSV_DATA,0,vit_tiny_l1_s65_d128_h4_ff256,65,128,4,32,256,1,240187360,12068231,1932218,2740596,600780,205481,98393,107088,904636,1659283,2622429,1608289,0,0,1990,2734,781,0
+CSV_DATA,1,vit_tiny_l2_s65_d128_h4_ff256,65,128,4,32,256,2,480322686,24094043,3847008,5464063,1196963,410579,196558,214021,1813393,3322276,5232453,3217887,0,0,1993,4492,1562,0
+CSV_DATA,2,vit_patch_l2_s197_d256_h4_ff256,197,256,4,64,256,2,5967345660,119455103,23531274,34476169,11017603,6098040,2763598,3334442,11532447,11533854,15918469,11445287,0,0,4995,6640,1562,0
+
