@@ -112,13 +112,21 @@ def print_case_samples(case: AttentionCase, data: dict[str, list[int] | int]) ->
     )
 
 
+def uniform_minus_one_to_one(
+    generator: torch.Generator,
+    rows: int,
+    cols: int,
+) -> torch.Tensor:
+    return torch.rand((rows, cols), generator=generator, dtype=torch.float32) * 2.0 - 1.0
+
+
 def make_case(case: AttentionCase):
     generator = torch.Generator(device="cpu")
     generator.manual_seed(case.seed)
 
-    q = torch.randn(case.q_rows, case.d_k, generator=generator, dtype=torch.float32) * case.input_scale
-    k = torch.randn(case.kv_rows, case.d_k, generator=generator, dtype=torch.float32) * case.input_scale
-    v = torch.randn(case.kv_rows, case.value_cols, generator=generator, dtype=torch.float32) * case.value_scale
+    q = uniform_minus_one_to_one(generator, case.q_rows, case.d_k) * case.input_scale
+    k = uniform_minus_one_to_one(generator, case.kv_rows, case.d_k) * case.input_scale
+    v = uniform_minus_one_to_one(generator, case.kv_rows, case.value_cols) * case.value_scale
 
     q_bf16 = q.to(torch.bfloat16)
     k_bf16 = k.to(torch.bfloat16)
