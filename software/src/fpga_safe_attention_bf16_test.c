@@ -40,6 +40,10 @@ static float rand_float(void) {
   return ((float)rand() / (float)RAND_MAX) * 2.0f - 1.0f;
 }
 
+static float rand_float_0_to_2(void) {
+  return ((float)rand() / (float)RAND_MAX) * 2.0f;
+}
+
 static void transpose_k(int kv_rows, int d_k) {
   for (int r = 0; r < kv_rows; r++) {
     for (int c = 0; c < d_k; c++) {
@@ -132,15 +136,15 @@ int main(void) {
 
     for (int r = 0; r < tc.q_rows; r++) {
       for (int c = 0; c < tc.d_k; c++) {
-        q_matrix[r][c] = float_to_bf16(rand_float());
+        q_matrix[r][c] = float_to_bf16(rand_float_0_to_2());
       }
     }
     for (int r = 0; r < tc.kv_rows; r++) {
       for (int c = 0; c < tc.d_k; c++) {
-        k_matrix[r][c] = float_to_bf16(rand_float());
+        k_matrix[r][c] = float_to_bf16(rand_float_0_to_2());
       }
       for (int c = 0; c < tc.value_cols; c++) {
-        v_matrix[r][c] = float_to_bf16(rand_float());
+        v_matrix[r][c] = float_to_bf16(rand_float_0_to_2());
       }
     }
     if (!FPGA_SAFE_ATTN_USE_HW_PACKER) {
