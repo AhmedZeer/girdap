@@ -6,7 +6,21 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#ifndef SA_OPCODE
 #define SA_OPCODE 1
+#endif
+
+#ifndef SA_MATMUL_OPCODE
+#define SA_MATMUL_OPCODE SA_OPCODE
+#endif
+
+#ifndef SA_ATTN_OPCODE
+#define SA_ATTN_OPCODE SA_OPCODE
+#endif
+
+#ifndef SA_SOFTDBG_OPCODE
+#define SA_SOFTDBG_OPCODE SA_OPCODE
+#endif
 #define SA_FUNCT_CONFIG 0
 #define SA_FUNCT_RUN 1
 #define SA_FUNCT_STATUS 2
@@ -96,14 +110,14 @@ static inline uint64_t ws_pack4_u16(uint16_t v0, uint16_t v1, uint16_t v2, uint1
 static inline uint64_t ws_sa_config(const uint64_t *a_stream, const uint64_t *b_stream) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, a_stream, b_stream, SA_FUNCT_CONFIG);
+  ROCC_INSTRUCTION_DSS(SA_MATMUL_OPCODE, rd, a_stream, b_stream, SA_FUNCT_CONFIG);
   return rd;
 }
 
 static inline uint64_t ws_sa_run(uint64_t *c_words, uint64_t k) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, c_words, k, SA_FUNCT_RUN);
+  ROCC_INSTRUCTION_DSS(SA_MATMUL_OPCODE, rd, c_words, k, SA_FUNCT_RUN);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -111,7 +125,7 @@ static inline uint64_t ws_sa_run(uint64_t *c_words, uint64_t k) {
 static inline uint64_t ws_sa_run_preloaded(const uint64_t *a_stream, uint64_t *c_words) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, a_stream, c_words, SA_FUNCT_RUN_PRELOADED);
+  ROCC_INSTRUCTION_DSS(SA_MATMUL_OPCODE, rd, a_stream, c_words, SA_FUNCT_RUN_PRELOADED);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -119,7 +133,7 @@ static inline uint64_t ws_sa_run_preloaded(const uint64_t *a_stream, uint64_t *c
 static inline uint64_t ws_sa_preload_weights(const uint64_t *b_stream, uint64_t k) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, b_stream, k, SA_FUNCT_PRELOAD_WEIGHTS);
+  ROCC_INSTRUCTION_DSS(SA_MATMUL_OPCODE, rd, b_stream, k, SA_FUNCT_PRELOAD_WEIGHTS);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -127,7 +141,7 @@ static inline uint64_t ws_sa_preload_weights(const uint64_t *b_stream, uint64_t 
 static inline uint64_t ws_sa_set_scale_bf16(uint16_t scale_bf16) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, (uint64_t)scale_bf16, 0, SA_FUNCT_SET_SCALE_BF16);
+  ROCC_INSTRUCTION_DSS(SA_MATMUL_OPCODE, rd, (uint64_t)scale_bf16, 0, SA_FUNCT_SET_SCALE_BF16);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -137,7 +151,7 @@ static inline uint64_t ws_attn_set_qk_addrs(
     const uint64_t *k_tiles) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, q_tiles, k_tiles, SA_FUNCT_ATTN_SET_QK_ADDRS);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, q_tiles, k_tiles, SA_FUNCT_ATTN_SET_QK_ADDRS);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -147,7 +161,7 @@ static inline uint64_t ws_attn_set_vout_addrs(
     uint64_t *out_words) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, v_tiles, out_words, SA_FUNCT_ATTN_SET_VOUT_ADDRS);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, v_tiles, out_words, SA_FUNCT_ATTN_SET_VOUT_ADDRS);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -164,7 +178,7 @@ static inline uint64_t ws_attn_set_dims(
       (uint64_t)(uint16_t)q_rows;
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, packed_dims, 0, SA_FUNCT_ATTN_SET_DIMS);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, packed_dims, 0, SA_FUNCT_ATTN_SET_DIMS);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -172,7 +186,7 @@ static inline uint64_t ws_attn_set_dims(
 static inline uint64_t ws_attn_set_scale_bf16(uint16_t scale_bf16) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, (uint64_t)scale_bf16, 0, SA_FUNCT_ATTN_SET_SCALE_BF16);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, (uint64_t)scale_bf16, 0, SA_FUNCT_ATTN_SET_SCALE_BF16);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -180,7 +194,7 @@ static inline uint64_t ws_attn_set_scale_bf16(uint16_t scale_bf16) {
 static inline uint64_t ws_attn_run(void) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, 0, 0, SA_FUNCT_ATTN_RUN);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, 0, 0, SA_FUNCT_ATTN_RUN);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -188,7 +202,7 @@ static inline uint64_t ws_attn_run(void) {
 static inline uint64_t ws_attn_precompute_scores(void) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, 0, 0, SA_FUNCT_ATTN_PRECOMPUTE_SCORES);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, 0, 0, SA_FUNCT_ATTN_PRECOMPUTE_SCORES);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -196,7 +210,7 @@ static inline uint64_t ws_attn_precompute_scores(void) {
 static inline uint64_t ws_attn_apply_cached(void) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, 0, 0, SA_FUNCT_ATTN_APPLY_CACHED);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, 0, 0, SA_FUNCT_ATTN_APPLY_CACHED);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -206,7 +220,7 @@ static inline uint64_t ws_attn_pack_set_addrs(
     uint64_t *dst) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, src, dst, SA_FUNCT_ATTN_PACK_SET_ADDRS);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, src, dst, SA_FUNCT_ATTN_PACK_SET_ADDRS);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -225,7 +239,7 @@ static inline uint64_t ws_attn_pack_set_dims(
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
   ROCC_INSTRUCTION_DSS(
-      SA_OPCODE, rd, packed_dims, (uint64_t)(uint16_t)out_stride, SA_FUNCT_ATTN_PACK_SET_DIMS);
+      SA_ATTN_OPCODE, rd, packed_dims, (uint64_t)(uint16_t)out_stride, SA_FUNCT_ATTN_PACK_SET_DIMS);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -233,7 +247,7 @@ static inline uint64_t ws_attn_pack_set_dims(
 static inline uint64_t ws_attn_pack_run(void) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, 0, 0, SA_FUNCT_ATTN_PACK_RUN);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, 0, 0, SA_FUNCT_ATTN_PACK_RUN);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -246,7 +260,7 @@ static inline int64_t ws_attn_debug_read_score(int row, int col) {
   uint64_t rd = 0;
   const uint64_t packed_index = ws_attn_debug_pack_index(row, col);
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, packed_index, 0, SA_FUNCT_ATTN_DEBUG_READ_SCORE);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, packed_index, 0, SA_FUNCT_ATTN_DEBUG_READ_SCORE);
   asm volatile("fence rw, rw" ::: "memory");
   return (int64_t)rd;
 }
@@ -255,7 +269,7 @@ static inline uint64_t ws_attn_debug_read_prob(int row, int col) {
   uint64_t rd = 0;
   const uint64_t packed_index = ws_attn_debug_pack_index(row, col);
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, packed_index, 0, SA_FUNCT_ATTN_DEBUG_READ_PROB);
+  ROCC_INSTRUCTION_DSS(SA_ATTN_OPCODE, rd, packed_index, 0, SA_FUNCT_ATTN_DEBUG_READ_PROB);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -263,7 +277,7 @@ static inline uint64_t ws_attn_debug_read_prob(int row, int col) {
 static inline uint64_t ws_softdbg_set_len(int len) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, (uint64_t)(uint16_t)len, 0, SA_FUNCT_SOFTDBG_SET_LEN);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, (uint64_t)(uint16_t)len, 0, SA_FUNCT_SOFTDBG_SET_LEN);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -272,7 +286,7 @@ static inline uint64_t ws_softdbg_write_score(int idx, int64_t score_fixed) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
   ROCC_INSTRUCTION_DSS(
-      SA_OPCODE, rd, (uint64_t)(uint16_t)idx, (uint64_t)score_fixed, SA_FUNCT_SOFTDBG_WRITE_SCORE);
+      SA_SOFTDBG_OPCODE, rd, (uint64_t)(uint16_t)idx, (uint64_t)score_fixed, SA_FUNCT_SOFTDBG_WRITE_SCORE);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -280,7 +294,7 @@ static inline uint64_t ws_softdbg_write_score(int idx, int64_t score_fixed) {
 static inline uint64_t ws_softdbg_run(void) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, 0, 0, SA_FUNCT_SOFTDBG_RUN);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, 0, 0, SA_FUNCT_SOFTDBG_RUN);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -288,7 +302,7 @@ static inline uint64_t ws_softdbg_run(void) {
 static inline int64_t ws_softdbg_read_score(int idx) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, (uint64_t)(uint16_t)idx, 0, SA_FUNCT_SOFTDBG_READ_SCORE);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, (uint64_t)(uint16_t)idx, 0, SA_FUNCT_SOFTDBG_READ_SCORE);
   asm volatile("fence rw, rw" ::: "memory");
   return (int64_t)rd;
 }
@@ -296,7 +310,7 @@ static inline int64_t ws_softdbg_read_score(int idx) {
 static inline int64_t ws_softdbg_read_diff(int idx) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, (uint64_t)(uint16_t)idx, 0, SA_FUNCT_SOFTDBG_READ_DIFF);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, (uint64_t)(uint16_t)idx, 0, SA_FUNCT_SOFTDBG_READ_DIFF);
   asm volatile("fence rw, rw" ::: "memory");
   return (int64_t)rd;
 }
@@ -304,7 +318,7 @@ static inline int64_t ws_softdbg_read_diff(int idx) {
 static inline uint64_t ws_softdbg_read_exp(int idx) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, (uint64_t)(uint16_t)idx, 0, SA_FUNCT_SOFTDBG_READ_EXP);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, (uint64_t)(uint16_t)idx, 0, SA_FUNCT_SOFTDBG_READ_EXP);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -312,7 +326,7 @@ static inline uint64_t ws_softdbg_read_exp(int idx) {
 static inline uint64_t ws_softdbg_read_denom(void) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, 0, 0, SA_FUNCT_SOFTDBG_READ_DENOM);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, 0, 0, SA_FUNCT_SOFTDBG_READ_DENOM);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -320,7 +334,7 @@ static inline uint64_t ws_softdbg_read_denom(void) {
 static inline uint64_t ws_softdbg_read_inv_denom(void) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, 0, 0, SA_FUNCT_SOFTDBG_READ_INV_DENOM);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, 0, 0, SA_FUNCT_SOFTDBG_READ_INV_DENOM);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -328,7 +342,7 @@ static inline uint64_t ws_softdbg_read_inv_denom(void) {
 static inline uint64_t ws_softdbg_read_prob(int idx) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, (uint64_t)(uint16_t)idx, 0, SA_FUNCT_SOFTDBG_READ_PROB);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, (uint64_t)(uint16_t)idx, 0, SA_FUNCT_SOFTDBG_READ_PROB);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -336,7 +350,7 @@ static inline uint64_t ws_softdbg_read_prob(int idx) {
 static inline int64_t ws_softdbg_read_row_max(void) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, 0, 0, SA_FUNCT_SOFTDBG_READ_ROW_MAX);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, 0, 0, SA_FUNCT_SOFTDBG_READ_ROW_MAX);
   asm volatile("fence rw, rw" ::: "memory");
   return (int64_t)rd;
 }
@@ -344,7 +358,7 @@ static inline int64_t ws_softdbg_read_row_max(void) {
 static inline uint64_t ws_softdbg_read_tile_denom(int tile_idx) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, (uint64_t)(uint16_t)tile_idx, 0, SA_FUNCT_SOFTDBG_READ_TILE_DENOM);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, (uint64_t)(uint16_t)tile_idx, 0, SA_FUNCT_SOFTDBG_READ_TILE_DENOM);
   asm volatile("fence rw, rw" ::: "memory");
   return rd;
 }
@@ -352,7 +366,7 @@ static inline uint64_t ws_softdbg_read_tile_denom(int tile_idx) {
 static inline int64_t ws_softdbg_read_tile_max(int tile_idx) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, (uint64_t)(uint16_t)tile_idx, 0, SA_FUNCT_SOFTDBG_READ_TILE_MAX);
+  ROCC_INSTRUCTION_DSS(SA_SOFTDBG_OPCODE, rd, (uint64_t)(uint16_t)tile_idx, 0, SA_FUNCT_SOFTDBG_READ_TILE_MAX);
   asm volatile("fence rw, rw" ::: "memory");
   return (int64_t)rd;
 }
@@ -360,14 +374,14 @@ static inline int64_t ws_softdbg_read_tile_max(int tile_idx) {
 static inline uint64_t ws_sa_read_counter(uint64_t counter_id) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, counter_id, 0, SA_FUNCT_READ_COUNTER);
+  ROCC_INSTRUCTION_DSS(SA_MATMUL_OPCODE, rd, counter_id, 0, SA_FUNCT_READ_COUNTER);
   return rd;
 }
 
 static inline void ws_sa_clear_counters(void) {
   uint64_t rd = 0;
   asm volatile("fence rw, rw" ::: "memory");
-  ROCC_INSTRUCTION_DSS(SA_OPCODE, rd, 0, 0, SA_FUNCT_CLEAR_COUNTERS);
+  ROCC_INSTRUCTION_DSS(SA_MATMUL_OPCODE, rd, 0, 0, SA_FUNCT_CLEAR_COUNTERS);
   asm volatile("fence rw, rw" ::: "memory");
 }
 
