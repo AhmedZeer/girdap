@@ -1,0 +1,7 @@
+{
+  "name" : "bert-encoder-dual-rocc-bare",
+  "workdir" : "../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/bare/bert-encoder-dual-rocc-host-init.sh",
+  "bin" : "build/encoder_model_dual_rocc_test.riscv"
+}
