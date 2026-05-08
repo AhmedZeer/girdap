@@ -1,5 +1,5 @@
 === Generic BF16 Attention Operator HW-Packer Test ===^M
-CSV_HEADER,case,name,q_rows,kv_rows,d_k,value_cols,cpu_cycles,hw_total_cycles,hw_accel_cycles,q_pack_cycles,k_pack_cycles,v_pack_cycles,hw_score_cycles,hw_value_cycles,hw_rc,raw_hw_rc,speedup_x100,hw_max_abs_diff_x100000,cpu_ref_max_abs_diff_x100000,mismatches^M
+CSV_HEADER,case,name,q_rows,kv_rows,d_k,value_cols,cpu_cycles,hw_e2e_cycles,hw_accel_cycles,q_pack_cycles,k_pack_cycles,v_pack_cycles,hw_score_cycles,hw_value_cycles,hw_rc,raw_hw_rc,speedup_x100,hw_max_abs_diff_x100000,cpu_ref_max_abs_diff_x100000,mismatches^M
 CSV_DATA,0,torch_8x8x16x8_s025,8,8,16,8,63121,5327,587,1209,1225,635,357,230,0,0,1184,292,28,0^M
 CSV_DATA,1,torch_8x9x16x8_s025,8,9,16,8,69000,5607,724,1077,1577,667,529,195,0,0,1230,170,23,0^M
 CSV_DATA,2,torch_8x16x16x8_s025,8,16,16,8,121133,6458,661,1077,2109,1107,417,244,0,0,1875,244,24,0^M

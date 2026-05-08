@@ -155,15 +155,16 @@ static int run_gemm_section(void) {
     }
 
     total_mismatches += mismatches;
+    const uint64_t hw_e2e_cycles = stats.hw_e2e_cycles;
     const uint64_t speedup_x100 =
-        stats.hw_e2e_cycles == 0 ? 0 : (sw_cycles * 100u) / stats.hw_e2e_cycles;
+        hw_e2e_cycles == 0 ? 0 : (sw_cycles * 100u) / hw_e2e_cycles;
     printf("GEMM_DATA,%d,%d,%d,%d,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%d,%lu,%d\n",
            t,
            tc.M,
            tc.N,
            tc.K,
            (unsigned long)sw_cycles,
-           (unsigned long)stats.hw_e2e_cycles,
+           (unsigned long)hw_e2e_cycles,
            (unsigned long)stats.stage.pack_a_cycles,
            (unsigned long)stats.stage.pack_b_cycles,
            (unsigned long)stats.stage.preload_cycles,
@@ -252,7 +253,7 @@ static int run_attention_section(void) {
 
   int total_mismatches = 0;
   printf("=== Dual-RoCC Attention custom1 Sanity ===\n");
-  printf("ATTN_HEADER,case,q_rows,kv_rows,d_k,value_cols,sw_cycles,hw_total_cycles,hw_e2e_cycles,q_pack_cycles,k_pack_cycles,v_pack_cycles,hw_score_cycles,hw_value_cycles,copy_out_cycles,hw_rc,raw_hw_rc,speedup_x100,max_abs_diff_x100000,mismatches\n");
+  printf("ATTN_HEADER,case,q_rows,kv_rows,d_k,value_cols,sw_cycles,hw_e2e_cycles,hw_accel_cycles,q_pack_cycles,k_pack_cycles,v_pack_cycles,hw_score_cycles,hw_value_cycles,copy_out_cycles,hw_rc,raw_hw_rc,speedup_x100,max_abs_diff_x100000,mismatches\n");
 
   srand(17);
   for (int t = 0; t < ntests; t++) {
@@ -337,7 +338,7 @@ static int run_attention_section(void) {
         stats.hw_e2e_cycles +
         stats.copy_out_cycles;
     const uint64_t speedup_x100 =
-        stats.hw_e2e_cycles == 0 ? 0 : (sw_cycles * 100u) / stats.hw_e2e_cycles;
+        hw_total_cycles == 0 ? 0 : (sw_cycles * 100u) / hw_total_cycles;
     printf("ATTN_DATA,%d,%d,%d,%d,%d,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%d,%lu,%lu,%lu,%d\n",
            t,
            tc.q_rows,

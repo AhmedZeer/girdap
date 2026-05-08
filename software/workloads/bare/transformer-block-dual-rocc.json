@@ -1,0 +1,7 @@
+{
+  "name" : "transformer-block-dual-rocc-bare",
+  "workdir" : "../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/bare/transformer-block-dual-rocc-host-init.sh",
+  "bin" : "build/transformer_block_dual_rocc_test.riscv"
+}
