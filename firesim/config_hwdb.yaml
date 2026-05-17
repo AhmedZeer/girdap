@@ -1,3 +1,8 @@
+Matmul8x8AndOnlineAttention8x8BF16FpgaSafePackerExpLut512:
+    agfi: agfi-0c68e57a012099da7
+    deploy_quintuplet_override: null
+    custom_runtime_config: null
+
 Matmul8x8AndOnlineAttention8x8BF16FpgaSafePackerExpLut:
     agfi: agfi-0a305d0c581e47dae
     deploy_quintuplet_override: null

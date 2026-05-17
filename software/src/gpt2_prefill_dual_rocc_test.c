@@ -546,7 +546,7 @@ int main(void) {
                                          GPT2_PREFILL_MAX_HEAD_DIM);
 
   printf("=== Dual-RoCC GPT-2 Prefill Test ===\n");
-  printf("OPCODE_INFO,matmul=%d,attention=%d,maxK=256,causal=row_prefix_calls\n",
+  printf("OPCODE_INFO,matmul=%d,attention=%d,maxK=512,causal=row_prefix_calls\n",
          SA_MATMUL_OPCODE, SA_ATTN_OPCODE);
   printf("CSV_HEADER,case,name,seq_len,d_model,n_heads,head_dim,hidden_dim,n_layers,vocab_size,cpu_cycles,hw_e2e_cycles,embedding_cycles,ln_cycles,qkv_proj_cycles,attn_e2e_cycles,attn_accel_cycles,attn_score_cycles,attn_value_cycles,out_proj_cycles,mlp_fc1_cycles,gelu_cycles,mlp_fc2_cycles,lm_head_cycles,bias_cycles,hw_rc,raw_hw_rc,speedup_x100,hw_max_abs_diff_x100000,cpu_ref_max_abs_diff_x100000,mismatches\n");
 

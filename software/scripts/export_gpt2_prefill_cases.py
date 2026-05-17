@@ -34,14 +34,21 @@ class Gpt2PrefillCase:
         return self.d_model // self.n_heads
 
 
-# These cases are intentionally capped for the currently built maxK=256 AGFI.
+# Active cases target the maxK=512 dual-RoCC AGFI. The older maxK=256 cases are
+# kept commented below for quick rollback when testing the previous AGFI.
 DEFAULT_CASES = (
-    Gpt2PrefillCase("gpt2prefill_l1_s16_d64_h4_ff128_vocab128", 16, 64, 4, 128, 1, 128, 801),
-    Gpt2PrefillCase("gpt2prefill_l2_s32_d128_h4_ff256_vocab256", 32, 128, 4, 256, 1, 256, 802),
-    Gpt2PrefillCase("gpt2prefill_l2_s64_d128_h4_ff256_vocab256", 64, 128, 4, 256, 1, 256, 803),
-    Gpt2PrefillCase("gpt2prefill_l4_s128_d128_h4_ff256_vocab256", 128, 128, 4, 256, 1, 256, 804),
-    Gpt2PrefillCase("gpt2prefill_l2_s128_d256_h4_ff256_vocab256", 128, 256, 4, 256, 1, 256, 805, 0.25, 0.015625),
-    Gpt2PrefillCase("gpt2prefill_l1_s256_d128_h4_ff256_vocab256", 256, 128, 4, 256, 1, 256, 806, 0.25, 0.015625),
+    # Gpt2PrefillCase("gpt2prefill_l1_s16_d64_h4_ff128_vocab128", 16, 64, 4, 128, 1, 128, 801),
+    # Gpt2PrefillCase("gpt2prefill_l2_s32_d128_h4_ff256_vocab256", 32, 128, 4, 256, 1, 256, 802),
+    # Gpt2PrefillCase("gpt2prefill_l2_s64_d128_h4_ff256_vocab256", 64, 128, 4, 256, 1, 256, 803),
+    # Gpt2PrefillCase("gpt2prefill_l4_s128_d128_h4_ff256_vocab256", 128, 128, 4, 256, 1, 256, 804),
+    # Gpt2PrefillCase("gpt2prefill_l2_s128_d256_h4_ff256_vocab256", 128, 256, 4, 256, 1, 256, 805, 0.25, 0.015625),
+    # Gpt2PrefillCase("gpt2prefill_l1_s256_d128_h4_ff256_vocab256", 256, 128, 4, 256, 1, 256, 806, 0.25, 0.015625),
+    Gpt2PrefillCase("gpt2prefill_512_l1_s128_d512_h8_ff512_vocab512", 128, 512, 8, 512, 1, 512, 811, 0.25, 0.015625),
+    Gpt2PrefillCase("gpt2prefill_512_l2_s128_d512_h8_ff512_vocab512", 128, 512, 8, 512, 2, 512, 812, 0.25, 0.015625),
+    Gpt2PrefillCase("gpt2prefill_512_l1_s256_d512_h8_ff512_vocab512", 256, 512, 8, 512, 1, 512, 813, 0.25, 0.015625),
+    Gpt2PrefillCase("gpt2prefill_512_l2_s256_d512_h8_ff512_vocab512", 256, 512, 8, 512, 2, 512, 814, 0.25, 0.015625),
+    Gpt2PrefillCase("gpt2prefill_512_l1_s512_d256_h4_ff512_vocab512", 512, 256, 4, 512, 1, 512, 815, 0.25, 0.015625),
+    Gpt2PrefillCase("gpt2prefill_512_l1_s512_d512_h8_ff512_vocab512", 512, 512, 8, 512, 1, 512, 816, 0.20, 0.01171875),
 )
 
 
@@ -107,8 +114,8 @@ def flatten(params: list[torch.Tensor]) -> torch.Tensor:
 def make_case(case: Gpt2PrefillCase) -> dict[str, list[int] | int]:
     if case.d_model % case.n_heads != 0:
         raise ValueError(f"{case.name}: d_model must be divisible by n_heads")
-    if case.seq_len > 256 or case.d_model > 256 or case.hidden_dim > 256 or case.head_dim > 256:
-        raise ValueError(f"{case.name}: dimensions exceed current maxK=256 AGFI envelope")
+    if case.seq_len > 512 or case.d_model > 512 or case.hidden_dim > 512 or case.head_dim > 512:
+        raise ValueError(f"{case.name}: dimensions exceed current maxK=512 AGFI envelope")
 
     generator = torch.Generator(device="cpu")
     generator.manual_seed(case.seed)
