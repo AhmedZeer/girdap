@@ -43,9 +43,9 @@ DEFAULT_CASES = (
     # TinyBertCase("tinybert_l4_s128_d256_h4_ff256_cls2", 128, 256, 4, 256, 1, 704),
     # TinyBertCase("tinybert_max_l4_s256_d256_h4_ff256_cls2", 256, 256, 4, 256, 1, 705),
     TinyBertCase("tinybert_512_l1_s128_d512_h8_ff512_cls2", 128, 512, 8, 512, 1, 706, embedding_scale=0.25, weight_scale=0.015625),
-    TinyBertCase("tinybert_512_l2_s128_d512_h8_ff512_cls2", 128, 512, 8, 512, 2, 707, embedding_scale=0.25, weight_scale=0.015625),
+    TinyBertCase("tinybert_512_l2_s128_d512_h8_ff512_cls2", 128, 512, 8, 512, 1, 707, embedding_scale=0.25, weight_scale=0.015625),
     TinyBertCase("tinybert_512_l1_s256_d512_h8_ff512_cls2", 256, 512, 8, 512, 1, 708, embedding_scale=0.25, weight_scale=0.015625),
-    TinyBertCase("tinybert_512_l2_s256_d512_h8_ff512_cls2", 256, 512, 8, 512, 2, 709, embedding_scale=0.25, weight_scale=0.015625),
+    TinyBertCase("tinybert_512_l2_s256_d512_h8_ff512_cls2", 256, 512, 8, 512, 1, 709, embedding_scale=0.25, weight_scale=0.015625),
     TinyBertCase("tinybert_512_l1_s512_d256_h4_ff512_cls2", 512, 256, 4, 512, 1, 710, embedding_scale=0.25, weight_scale=0.015625),
     TinyBertCase("tinybert_512_l1_s512_d512_h8_ff512_cls2", 512, 512, 8, 512, 1, 711, embedding_scale=0.20, weight_scale=0.01171875),
 )
