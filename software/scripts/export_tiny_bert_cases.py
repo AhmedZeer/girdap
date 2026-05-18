@@ -37,9 +37,9 @@ class TinyBertCase:
 
 
 DEFAULT_CASES = (
-    # TinyBertCase("tinybert_l1_s32_d128_h4_ff256_cls2", 32, 128, 4, 256, 1, 701),
-    # TinyBertCase("tinybert_l2_s64_d128_h4_ff256_cls2", 64, 128, 4, 256, 1, 702),
-    # TinyBertCase("tinybert_l4_s128_d128_h4_ff256_cls2", 128, 128, 4, 256, 1, 703),
+    TinyBertCase("tinybert_l1_s32_d128_h4_ff256_cls2", 32, 128, 4, 256, 1, 701),
+    TinyBertCase("tinybert_l1_s64_d128_h4_ff256_cls2", 64, 128, 4, 256, 1, 702),
+    TinyBertCase("tinybert_l1_s128_d128_h4_ff256_cls2", 128, 128, 4, 256, 1, 703),
     # TinyBertCase("tinybert_l4_s128_d256_h4_ff256_cls2", 128, 256, 4, 256, 1, 704),
     # TinyBertCase("tinybert_max_l4_s256_d256_h4_ff256_cls2", 256, 256, 4, 256, 1, 705),
     TinyBertCase("tinybert_512_l1_s128_d512_h8_ff512_cls2", 128, 512, 8, 512, 1, 706, embedding_scale=0.25, weight_scale=0.015625),
