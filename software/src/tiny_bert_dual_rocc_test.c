@@ -118,6 +118,16 @@ static inline uint16_t tensor_at(const uint16_t *tensor, int row, int col, int l
   return tensor[row * ld + col];
 }
 
+static void print_float_value(float value) {
+  if (value < 0.0f) {
+    printf("-");
+    value = -value;
+  }
+  const int whole_part = (int)value;
+  const int frac_part = (int)((value - (float)whole_part) * 10000.0f);
+  printf("%d.%04d", whole_part, frac_part);
+}
+
 static int sample_chunk_start(const char *name, int rows, int cols) {
   uint32_t hash = 2166136261u;
   for (const char *p = name; *p != '\0'; p++) {
@@ -142,38 +152,72 @@ static void print_solution_sample_chunk(
     int hw_ld,
     int rows,
     int cols,
-    int hw_ok) {
+    int hw_rc) {
   const int total = rows * cols;
   const int count = total < 10 ? total : 10;
   const int start = sample_chunk_start(case_name, rows, cols);
-  printf("SAMPLE_CHUNK,workload=tiny-bert,case=%d,name=%s,tensor=%s,start=%d,count=%d,total=%d,sw=[",
-         case_index, case_name, tensor_name, start, count, total);
+  printf("\n  sample %s[start=%d count=%d total=%d]\n", tensor_name, start, count, total);
+  printf("    sw :");
+  for (int i = 0; i < count; i++) {
+    const int idx = start + i;
+    const int row = idx / cols;
+    const int col = idx % cols;
+    printf(" ");
+    print_float_value(bf16_to_float(tensor_at(sw, row, col, sw_ld)));
+  }
+  printf("\n    hw :");
+  for (int i = 0; i < count; i++) {
+    const int idx = start + i;
+    const int row = idx / cols;
+    const int col = idx % cols;
+    printf(" ");
+    print_float_value(bf16_to_float(tensor_at(hw, row, col, hw_ld)));
+  }
+  printf("\n    diff:");
+  for (int i = 0; i < count; i++) {
+    const int idx = start + i;
+    const int row = idx / cols;
+    const int col = idx % cols;
+    const float sw_val = bf16_to_float(tensor_at(sw, row, col, sw_ld));
+    const float hw_val = bf16_to_float(tensor_at(hw, row, col, hw_ld));
+    printf(" ");
+    print_float_value(fabsf(sw_val - hw_val));
+  }
+  printf("\n");
+  printf("SAMPLE_JSON {\"workload\":\"tiny-bert\",\"case\":%d,\"name\":\"%s\",\"tensor\":\"%s\",\"start\":%d,\"count\":%d,\"total\":%d,\"hw_rc\":%d,\"sw\":[",
+         case_index, case_name, tensor_name, start, count, total, hw_rc);
   for (int i = 0; i < count; i++) {
     const int idx = start + i;
     const int row = idx / cols;
     const int col = idx % cols;
     if (i != 0) {
-      printf(" ");
+      printf(",");
     }
-    print_float_inline(bf16_to_float(tensor_at(sw, row, col, sw_ld)));
+    print_float_value(bf16_to_float(tensor_at(sw, row, col, sw_ld)));
   }
-  printf("],hw=");
-  if (hw_ok) {
-    printf("[");
-    for (int i = 0; i < count; i++) {
-      const int idx = start + i;
-      const int row = idx / cols;
-      const int col = idx % cols;
-      if (i != 0) {
-        printf(" ");
-      }
-      print_float_inline(bf16_to_float(tensor_at(hw, row, col, hw_ld)));
+  printf("],\"hw\":[");
+  for (int i = 0; i < count; i++) {
+    const int idx = start + i;
+    const int row = idx / cols;
+    const int col = idx % cols;
+    if (i != 0) {
+      printf(",");
     }
-    printf("]");
-  } else {
-    printf("unavailable");
+    print_float_value(bf16_to_float(tensor_at(hw, row, col, hw_ld)));
   }
-  printf("\n");
+  printf("],\"diff\":[");
+  for (int i = 0; i < count; i++) {
+    const int idx = start + i;
+    const int row = idx / cols;
+    const int col = idx % cols;
+    const float sw_val = bf16_to_float(tensor_at(sw, row, col, sw_ld));
+    const float hw_val = bf16_to_float(tensor_at(hw, row, col, hw_ld));
+    if (i != 0) {
+      printf(",");
+    }
+    print_float_value(fabsf(sw_val - hw_val));
+  }
+  printf("]}\n");
 }
 
 static inline const uint16_t *layer_vec(const uint16_t *base, int layer, int d_model) {
@@ -838,12 +882,14 @@ int main(void) {
                                          TINY_BERT_MAX_HEAD_DIM);
 
   printf("=== Girdap Tiny-BERT Inference Test ===\n");
-  printf("MODE_INFO,name=%s,matmul_hw=%d,attention_hw=%d,softmax_hw=%d\n",
+  printf("mode: %s  hardware: matmul=%d attention=%d softmax=%d\n",
          GIRDAP_BENCHMARK_MODE, GIRDAP_HW_MATMUL, GIRDAP_HW_ATTENTION,
          GIRDAP_HW_SOFTMAX);
-  printf("OPCODE_INFO,matmul=%d,attention=%d,softmax=%d\n",
+  printf("opcodes: matmul=%d attention=%d softmax=%d\n",
          SA_MATMUL_OPCODE, SA_ATTN_OPCODE, SOFTMAX_OPCODE);
-  printf("CSV_HEADER,case,name,seq_len,d_model,n_heads,head_dim,hidden_dim,n_layers,vocab_size,num_classes,cpu_cycles,hw_e2e_cycles,embedding_cycles,qkv_proj_cycles,attn_e2e_cycles,attn_accel_cycles,attn_score_cycles,attn_value_cycles,out_proj_cycles,mlp_fc1_cycles,mlp_fc2_cycles,pooler_cycles,classifier_cycles,bias_cycles,ln_residual_cycles,gelu_cycles,tanh_cycles,hw_rc,raw_hw_rc,speedup_x100,hw_max_abs_diff_x100000,cpu_ref_max_abs_diff_x100000,mismatches\n");
+  printf("RUN_INFO_JSON {\"workload\":\"tiny-bert\",\"mode\":\"%s\",\"matmul_hw\":%d,\"attention_hw\":%d,\"softmax_hw\":%d,\"matmul_opcode\":%d,\"attention_opcode\":%d,\"softmax_opcode\":%d}\n",
+         GIRDAP_BENCHMARK_MODE, GIRDAP_HW_MATMUL, GIRDAP_HW_ATTENTION,
+         GIRDAP_HW_SOFTMAX, SA_MATMUL_OPCODE, SA_ATTN_OPCODE, SOFTMAX_OPCODE);
 
   int total_mismatches = 0;
   for (int i = 0; i < tiny_bert_case_count; i++) {
@@ -870,41 +916,60 @@ int main(void) {
       hw_diff = max_diff_logits(tc->expected_logits, logits, tc->num_classes,
                                 &mismatches, tc->tolerance_x100000, tc->name);
     }
-    print_solution_sample_chunk(i, tc->name, "encoder_output", &sw_x[0][0],
-                                TINY_BERT_MAX_D_MODEL, &x[0][0],
-                                TINY_BERT_MAX_D_MODEL, tc->seq_len,
-                                tc->d_model, hw_rc == WS_GEMM_OK);
-    print_solution_sample_chunk(i, tc->name, "logits", sw_logits,
-                                tc->num_classes, logits, tc->num_classes, 1,
-                                tc->num_classes, hw_rc == WS_GEMM_OK);
-    total_mismatches += mismatches;
 
-    printf("CSV_DATA,%d,%s,%d,%d,%d,%d,%d,%d,%d,%d,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%lu,%d,%lu,%lu,%lu,%lu,%d\n",
-           i, tc->name, tc->seq_len, tc->d_model, tc->n_heads, tc->head_dim,
-           tc->hidden_dim, tc->n_layers, tc->vocab_size, tc->num_classes,
-           (unsigned long)cpu_cycles,
-           (unsigned long)hw_e2e_cycles,
+    printf("\n[Case %d] %s\n", i, tc->name);
+    printf("  shape : seq=%d d_model=%d heads=%d head_dim=%d hidden=%d layers=%d vocab=%d classes=%d\n",
+           tc->seq_len, tc->d_model, tc->n_heads, tc->head_dim,
+           tc->hidden_dim, tc->n_layers, tc->vocab_size, tc->num_classes);
+    printf("  mode  : %s  opcodes: matmul=%d attention=%d softmax=%d\n",
+           GIRDAP_BENCHMARK_MODE, SA_MATMUL_OPCODE, SA_ATTN_OPCODE, SOFTMAX_OPCODE);
+    printf("  status: %s  hw_rc=%d raw_hw_rc=%lu mismatches=%d\n",
+           (hw_rc == WS_GEMM_OK && mismatches == 0) ? "PASS" : "FAIL",
+           hw_rc, (unsigned long)stats.raw_hw_rc, mismatches);
+    printf("  cycles: cpu=%lu hw=%lu speedup=%lu.%02lux\n",
+           (unsigned long)cpu_cycles, (unsigned long)hw_e2e_cycles,
+           (unsigned long)(speedup_x100 / 100u), (unsigned long)(speedup_x100 % 100u));
+    printf("          embedding=%lu qkv=%lu attn=%lu attn_accel=%lu out=%lu fc1=%lu fc2=%lu pooler=%lu classifier=%lu\n",
            (unsigned long)stats.embedding_cycles,
            (unsigned long)stats.qkv_proj_cycles,
            (unsigned long)stats.attn_e2e_cycles,
            (unsigned long)stats.attn_accel_cycles,
-           (unsigned long)stats.attn_score_cycles,
-           (unsigned long)stats.attn_value_cycles,
            (unsigned long)stats.out_proj_cycles,
            (unsigned long)stats.mlp_fc1_cycles,
            (unsigned long)stats.mlp_fc2_cycles,
            (unsigned long)stats.pooler_cycles,
-           (unsigned long)stats.classifier_cycles,
+           (unsigned long)stats.classifier_cycles);
+    printf("          bias=%lu ln_residual=%lu gelu=%lu tanh=%lu\n",
            (unsigned long)stats.bias_cycles,
            (unsigned long)stats.ln_residual_cycles,
            (unsigned long)stats.gelu_cycles,
-           (unsigned long)stats.tanh_cycles,
+           (unsigned long)stats.tanh_cycles);
+    printf("  error : hw_max_abs=");
+    print_float_value(hw_diff);
+    printf(" cpu_ref_max_abs=");
+    print_float_value(cpu_ref_diff);
+    printf("\n");
+
+    print_solution_sample_chunk(i, tc->name, "encoder_output", &sw_x[0][0],
+                                TINY_BERT_MAX_D_MODEL, &x[0][0],
+                                TINY_BERT_MAX_D_MODEL, tc->seq_len,
+                                tc->d_model, hw_rc);
+    print_solution_sample_chunk(i, tc->name, "logits", sw_logits,
+                                tc->num_classes, logits, tc->num_classes, 1,
+                                tc->num_classes, hw_rc);
+    total_mismatches += mismatches;
+
+    printf("RESULT_JSON {\"workload\":\"tiny-bert\",\"case\":%d,\"name\":\"%s\",\"status\":\"%s\",\"hw_rc\":%d,\"raw_hw_rc\":%lu,\"mismatches\":%d,\"cpu_cycles\":%lu,\"hw_cycles\":%lu,\"speedup_x100\":%lu,\"hw_max_abs_diff_x100000\":%lu,\"cpu_ref_max_abs_diff_x100000\":%lu}\n",
+           i, tc->name,
+           (hw_rc == WS_GEMM_OK && mismatches == 0) ? "PASS" : "FAIL",
            hw_rc,
            (unsigned long)stats.raw_hw_rc,
+           mismatches,
+           (unsigned long)cpu_cycles,
+           (unsigned long)hw_e2e_cycles,
            (unsigned long)speedup_x100,
            (unsigned long)(hw_diff * 100000.0f),
-           (unsigned long)(cpu_ref_diff * 100000.0f),
-           mismatches);
+           (unsigned long)(cpu_ref_diff * 100000.0f));
   }
 
   if (total_mismatches == 0) {
