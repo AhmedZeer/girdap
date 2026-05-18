@@ -2,4 +2,4 @@
 # SPDX-License-Identifier: Apache-2.0
 
 set -euo pipefail
-workloads/pytorch/bare/build-pytorch-benchmark.sh gpt2-prefill softmax-only
+workloads/pytorch/bare/build-pytorch-benchmark.sh gpt2-prefill softmax-only softmax-rocc
