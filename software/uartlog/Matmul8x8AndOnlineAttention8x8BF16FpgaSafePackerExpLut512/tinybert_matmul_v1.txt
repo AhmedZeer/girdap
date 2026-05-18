@@ -1,0 +1,115 @@
+=== Girdap Tiny-BERT Inference Test ===
+mode: matmul-only  hardware: matmul=1 attention=0 softmax=0
+opcodes: matmul=0 attention=1 softmax=0
+RUN_INFO_JSON {"workload":"tiny-bert","mode":"matmul-only","matmul_hw":1,"attention_hw":0,"softmax_hw":0,"matmul_opcode":0,"attention_opcode":1,"softmax_opcode":0}
+
+[Case 0] tinybert_l1_s64_d128_h4_ff256_cls2
+  shape : seq=32 d_model=64 heads=4 head_dim=16 hidden=256 layers=1 vocab=512 classes=2
+  mode  : matmul-only  opcodes: matmul=0 attention=1 softmax=0
+  status: PASS  hw_rc=0 raw_hw_rc=0 mismatches=0
+  cycles: cpu=38832080 hw=9148223 speedup=4.24x
+          embedding=252040 qkv=575048 attn=4553765 attn_accel=1947708 out=188840 fc1=665086 fc2=618218 pooler=96221 classifier=20920
+          bias=398457 ln_residual=471205 gelu=1294130 tanh=14293
+  error : hw_max_abs=0.0067 cpu_ref_max_abs=0.0004
+
+  sample encoder_output[start=1341 count=10 total=2048]
+    sw : 0.2070 0.9492 -0.9570 -0.8984 1.2500 -0.5507 -1.1406 0.5351 1.0234 -1.7890
+    hw : 0.2119 0.9453 -0.9531 -0.9023 1.2500 -0.5507 -1.1406 0.5390 1.0234 -1.7812
+    diff: 0.0048 0.0039 0.0039 0.0039 0.0000 0.0000 0.0000 0.0039 0.0000 0.0078
+SAMPLE_JSON {"workload":"tiny-bert","case":0,"name":"tinybert_l1_s64_d128_h4_ff256_cls2","tensor":"encoder_output","start":1341,"count":10,"total":2048,"hw_rc":0,"sw":[0.2070,0.9492,-0.9570,-0.8984,1.2500,-0.5507,-1.1406,0.5351,1.0234,-1.7890],"hw":[0.2119,0.9453,-0.9531,-0.9023,1.2500,-0.5507,-1.1406,0.5390,1.0234,-1.7812],"diff":[0.0048,0.0039,0.0039,0.0039,0.0000,0.0000,0.0000,0.0039,0.0000,0.0078]}
+
+  sample logits[start=0 count=2 total=2]
+    sw : 0.0099 -0.0220
+    hw : 0.0104 -0.0155
+    diff: 0.0004 0.0065
+SAMPLE_JSON {"workload":"tiny-bert","case":0,"name":"tinybert_l1_s64_d128_h4_ff256_cls2","tensor":"logits","start":0,"count":2,"total":2,"hw_rc":0,"sw":[0.0099,-0.0220],"hw":[0.0104,-0.0155],"diff":[0.0004,0.0065]}
+RESULT_JSON {"workload":"tiny-bert","case":0,"name":"tinybert_l1_s64_d128_h4_ff256_cls2","status":"PASS","hw_rc":0,"raw_hw_rc":0,"mismatches":0,"cpu_cycles":38832080,"hw_cycles":9148223,"speedup_x100":424,"hw_max_abs_diff_x100000":677,"cpu_ref_max_abs_diff_x100000":42}
+
+[Case 1] tinybert_l1_s128_d128_h4_ff256_cls2
+  shape : seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2
+  mode  : matmul-only  opcodes: matmul=0 attention=1 softmax=0
+  status: PASS  hw_rc=0 raw_hw_rc=0 mismatches=0
+  cycles: cpu=250946963 hw=45901846 speedup=5.46x
+          embedding=997674 qkv=2578168 attn=32225824 attn_accel=7825539 out=852428 fc1=1592115 fc2=1518947 pooler=367631 classifier=40710
+          bias=1256632 ln_residual=1852604 gelu=2590087 tanh=29026
+  error : hw_max_abs=0.0014 cpu_ref_max_abs=0.0002
+
+  sample encoder_output[start=1089 count=10 total=8192]
+    sw : -1.0703 -0.2373 -0.5234 -2.0156 0.5859 0.6367 -0.3125 -0.3496 0.5703 1.0468
+    hw : -1.0625 -0.2343 -0.5273 -2.0156 0.5859 0.6367 -0.2988 -0.3417 0.5703 1.0390
+    diff: 0.0078 0.0029 0.0039 0.0000 0.0000 0.0000 0.0136 0.0078 0.0000 0.0078
+SAMPLE_JSON {"workload":"tiny-bert","case":1,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","tensor":"encoder_output","start":1089,"count":10,"total":8192,"hw_rc":0,"sw":[-1.0703,-0.2373,-0.5234,-2.0156,0.5859,0.6367,-0.3125,-0.3496,0.5703,1.0468],"hw":[-1.0625,-0.2343,-0.5273,-2.0156,0.5859,0.6367,-0.2988,-0.3417,0.5703,1.0390],"diff":[0.0078,0.0029,0.0039,0.0000,0.0000,0.0000,0.0136,0.0078,0.0000,0.0078]}
+
+  sample logits[start=0 count=2 total=2]
+    sw : 0.0042 0.0252
+    hw : 0.0032 0.0240
+    diff: 0.0009 0.0012
+SAMPLE_JSON {"workload":"tiny-bert","case":1,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","tensor":"logits","start":0,"count":2,"total":2,"hw_rc":0,"sw":[0.0042,0.0252],"hw":[0.0032,0.0240],"diff":[0.0009,0.0012]}
+RESULT_JSON {"workload":"tiny-bert","case":1,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","status":"PASS","hw_rc":0,"raw_hw_rc":0,"mismatches":0,"cpu_cycles":250946963,"hw_cycles":45901846,"speedup_x100":546,"hw_max_abs_diff_x100000":146,"cpu_ref_max_abs_diff_x100000":24}
+
+[Case 2] tinybert_l1_s128_d128_h4_ff256_cls2
+  shape : seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2
+  mode  : matmul-only  opcodes: matmul=0 attention=1 softmax=0
+  status: PASS  hw_rc=0 raw_hw_rc=0 mismatches=0
+  cycles: cpu=585069723 hw=156856774 speedup=3.72x
+          embedding=2001479 qkv=4244366 attn=132350602 attn_accel=31431942 out=1418772 fc1=2536182 fc2=2395536 pooler=373208 classifier=40842
+          bias=2534618 ln_residual=3750438 gelu=5181543 tanh=29188
+  error : hw_max_abs=0.0098 cpu_ref_max_abs=0.0007
+
+  sample encoder_output[start=13770 count=10 total=16384]
+    sw : 0.9218 -1.1093 1.5390 1.0312 -0.5703 -1.0625 0.3164 0.9609 0.6289 0.2138
+    hw : 0.9218 -1.1015 1.5390 1.0312 -0.5703 -1.0546 0.3164 0.9726 0.6367 0.2011
+    diff: 0.0000 0.0078 0.0000 0.0000 0.0000 0.0078 0.0000 0.0117 0.0078 0.0126
+SAMPLE_JSON {"workload":"tiny-bert","case":2,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","tensor":"encoder_output","start":13770,"count":10,"total":16384,"hw_rc":0,"sw":[0.9218,-1.1093,1.5390,1.0312,-0.5703,-1.0625,0.3164,0.9609,0.6289,0.2138],"hw":[0.9218,-1.1015,1.5390,1.0312,-0.5703,-1.0546,0.3164,0.9726,0.6367,0.2011],"diff":[0.0000,0.0078,0.0000,0.0000,0.0000,0.0078,0.0000,0.0117,0.0078,0.0126]}
+
+  sample logits[start=0 count=2 total=2]
+    sw : -0.0077 0.0393
+    hw : -0.0099 0.0301
+    diff: 0.0021 0.0091
+SAMPLE_JSON {"workload":"tiny-bert","case":2,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","tensor":"logits","start":0,"count":2,"total":2,"hw_rc":0,"sw":[-0.0077,0.0393],"hw":[-0.0099,0.0301],"diff":[0.0021,0.0091]}
+RESULT_JSON {"workload":"tiny-bert","case":2,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","status":"PASS","hw_rc":0,"raw_hw_rc":0,"mismatches":0,"cpu_cycles":585069723,"hw_cycles":156856774,"speedup_x100":372,"hw_max_abs_diff_x100000":988,"cpu_ref_max_abs_diff_x100000":73}
+
+[Case 3] tinybert_l1_s128_d128_h4_ff256_cls2
+  shape : seq=256 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2
+  mode  : matmul-only  opcodes: matmul=0 attention=1 softmax=0
+  status: PASS  hw_rc=0 raw_hw_rc=0 mismatches=0
+  cycles: cpu=4338873389 hw=1008916405 speedup=4.30x
+          embedding=7997647 qkv=21243835 attn=922432408 attn_accel=126726494 out=7132133 fc1=7063660 fc2=7056442 pooler=1573426 classifier=81094
+          bias=8822724 ln_residual=15078510 gelu=10373917 tanh=60609
+  error : hw_max_abs=0.0224 cpu_ref_max_abs=0.0009
+
+  sample encoder_output[start=42092 count=10 total=65536]
+    sw : 1.3437 0.4199 -0.3925 -1.9375 0.3691 -1.3125 0.4355 -0.3886 0.3261 -0.0118
+    hw : 1.3359 0.4179 -0.4375 -1.9453 0.3828 -1.2968 0.4433 -0.3867 0.3183 -0.0329
+    diff: 0.0078 0.0019 0.0449 0.0078 0.0136 0.0156 0.0078 0.0019 0.0078 0.0211
+SAMPLE_JSON {"workload":"tiny-bert","case":3,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","tensor":"encoder_output","start":42092,"count":10,"total":65536,"hw_rc":0,"sw":[1.3437,0.4199,-0.3925,-1.9375,0.3691,-1.3125,0.4355,-0.3886,0.3261,-0.0118],"hw":[1.3359,0.4179,-0.4375,-1.9453,0.3828,-1.2968,0.4433,-0.3867,0.3183,-0.0329],"diff":[0.0078,0.0019,0.0449,0.0078,0.0136,0.0156,0.0078,0.0019,0.0078,0.0211]}
+
+  sample logits[start=0 count=2 total=2]
+    sw : -0.1259 0.1005
+    hw : -0.1079 0.0791
+    diff: 0.0180 0.0214
+SAMPLE_JSON {"workload":"tiny-bert","case":3,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","tensor":"logits","start":0,"count":2,"total":2,"hw_rc":0,"sw":[-0.1259,0.1005],"hw":[-0.1079,0.0791],"diff":[0.0180,0.0214]}
+RESULT_JSON {"workload":"tiny-bert","case":3,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","status":"PASS","hw_rc":0,"raw_hw_rc":0,"mismatches":0,"cpu_cycles":4338873389,"hw_cycles":1008916405,"speedup_x100":430,"hw_max_abs_diff_x100000":2246,"cpu_ref_max_abs_diff_x100000":97}
+
+[Case 4] tinybert_l1_s128_d128_h4_ff256_cls2
+  shape : seq=512 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2
+  mode  : matmul-only  opcodes: matmul=0 attention=1 softmax=0
+  status: PASS  hw_rc=0 raw_hw_rc=0 mismatches=0
+  cycles: cpu=11065782442 hw=3899444485 speedup=2.83x
+          embedding=16040030 qkv=41169125 attn=3730109291 attn_accel=508648206 out=13794090 fc1=13713971 fc2=13717514 pooler=1601633 classifier=81151
+          bias=17836242 ln_residual=30512068 gelu=20809348 tanh=60022
+  error : hw_max_abs=0.0322 cpu_ref_max_abs=0.0014
+
+  sample encoder_output[start=8580 count=10 total=131072]
+    sw : 0.6914 -1.7656 0.1552 0.3300 -2.0468 -1.8281 1.4062 -1.0937 0.0289 0.9570
+    hw : 0.6875 -1.7656 0.1728 0.3066 -2.0468 -1.8203 1.4218 -1.0937 0.0339 0.9570
+    diff: 0.0039 0.0000 0.0175 0.0234 0.0000 0.0078 0.0156 0.0000 0.0050 0.0000
+SAMPLE_JSON {"workload":"tiny-bert","case":4,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","tensor":"encoder_output","start":8580,"count":10,"total":131072,"hw_rc":0,"sw":[0.6914,-1.7656,0.1552,0.3300,-2.0468,-1.8281,1.4062,-1.0937,0.0289,0.9570],"hw":[0.6875,-1.7656,0.1728,0.3066,-2.0468,-1.8203,1.4218,-1.0937,0.0339,0.9570],"diff":[0.0039,0.0000,0.0175,0.0234,0.0000,0.0078,0.0156,0.0000,0.0050,0.0000]}
+
+  sample logits[start=0 count=2 total=2]
+    sw : -0.1640 0.0568
+    hw : -0.1328 0.0505
+    diff: 0.0312 0.0063
+SAMPLE_JSON {"workload":"tiny-bert","case":4,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","tensor":"logits","start":0,"count":2,"total":2,"hw_rc":0,"sw":[-0.1640,0.0568],"hw":[-0.1328,0.0505],"diff":[0.0312,0.0063]}
+RESULT_JSON {"workload":"tiny-bert","case":4,"name":"tinybert_l1_s128_d128_h4_ff256_cls2","status":"PASS","hw_rc":0,"raw_hw_rc":0,"mismatches":0,"cpu_cycles":11065782442,"hw_cycles":3899444485,"speedup_x100":283,"hw_max_abs_diff_x100000":3222,"cpu_ref_max_abs_diff_x100000":146}
+
