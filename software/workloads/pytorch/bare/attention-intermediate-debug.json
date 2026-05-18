@@ -1,0 +1,7 @@
+{
+  "name" : "attention-intermediate-debug-bare",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/pytorch/bare/attention-intermediate-host-init.sh",
+  "bin" : "build/attention_intermediate_debug_test.riscv"
+}

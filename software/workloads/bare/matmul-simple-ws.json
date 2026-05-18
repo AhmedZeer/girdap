@@ -1,7 +1,0 @@
-{
-  "name" : "matmul-simple-bfloat16-weight-stationary-bare",
-  "workdir" : "../..",
-  "base" : "bare-base.json",
-  "host-init" : "workloads/bare/host-init.sh",
-  "bin" : "build/systolic_matmul_simple_bfloat16_weight_stationary.riscv"
-}

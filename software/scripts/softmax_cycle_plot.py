@@ -22,7 +22,7 @@ class SoftmaxPoint:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Plot softmax software and hardware cycle counts from a toyrocc log."
+        description="Plot softmax software and hardware cycle counts from a girdap log."
     )
     parser.add_argument(
         "logfile",

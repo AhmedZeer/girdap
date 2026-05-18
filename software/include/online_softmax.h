@@ -1,5 +1,5 @@
-#ifndef TOYROCC_ONLINE_SOFTMAX_H
-#define TOYROCC_ONLINE_SOFTMAX_H
+#ifndef GIRDAP_ONLINE_SOFTMAX_H
+#define GIRDAP_ONLINE_SOFTMAX_H
 
 #include "rocc.h"
 
@@ -9,7 +9,9 @@
 extern "C" {
 #endif
 
+#ifndef SOFTMAX_OPCODE
 #define SOFTMAX_OPCODE 0
+#endif
 #define SOFTMAX_FUNCT_ACCUMULATE 0
 #define SOFTMAX_FUNCT_NORMALIZE_BF16 1
 

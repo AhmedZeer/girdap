@@ -1,12 +1,20 @@
-ToyRoCC
+Girdap
 =======================
 
-I have tried to collate the minimal Hardware & Software code to write a custom
-Tightly-Coupled Rocket Custom Co-Processor.
+Girdap is a Chipyard/RoCC accelerator project for BF16 matmul, online
+attention, and softmax experiments.
+
+### Current Hardware Configs
+
+The active Chipyard configs are defined in `chipyard/GirdapConfigs.scala`:
+
+* `FusedOnlineAttention8x8BF16FpgaSafePackerExpLutConfig`
+* `Matmul8x8AndOnlineAttention8x8BF16FpgaSafePackerExpLutConfig`
+* `Matmul8x8AndOnlineAttention8x8BF16FpgaSafePackerExpLut512Config`
+* `SoftmaxAccel128Config`
+* `MatmulAccel8x8BF16FpgaSafeConfig`
 
 ### Licensing
-
-The original ToyRoCC files remain under the license in `LICENSE`.
 
 New BF16 matmul, attention, FPGA-safe accelerator, software workload, and
 FireSim/Chipyard integration extensions added for this project are licensed

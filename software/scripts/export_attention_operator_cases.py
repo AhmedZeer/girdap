@@ -169,8 +169,8 @@ def write_assets(cases: tuple[AttentionCase, ...], out_dir: Path) -> None:
         print_case_samples(case, data)
 
     with header.open("w", encoding="utf-8") as out:
-        out.write("#ifndef TOYROCC_GENERATED_ATTENTION_OPERATOR_CASES_H\n")
-        out.write("#define TOYROCC_GENERATED_ATTENTION_OPERATOR_CASES_H\n\n")
+        out.write("#ifndef GIRDAP_GENERATED_ATTENTION_OPERATOR_CASES_H\n")
+        out.write("#define GIRDAP_GENERATED_ATTENTION_OPERATOR_CASES_H\n\n")
         out.write("#include <stdint.h>\n\n")
         out.write(f"#define ATTN_OPERATOR_MAX_Q_ROWS {max_q_rows}\n")
         out.write(f"#define ATTN_OPERATOR_MAX_KV_ROWS {max_kv_rows}\n")

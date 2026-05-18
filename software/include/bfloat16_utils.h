@@ -1,5 +1,5 @@
-#ifndef TOYROCC_BFLOAT16_UTILS_H
-#define TOYROCC_BFLOAT16_UTILS_H
+#ifndef GIRDAP_BFLOAT16_UTILS_H
+#define GIRDAP_BFLOAT16_UTILS_H
 
 #include <limits.h>
 #include <stddef.h>

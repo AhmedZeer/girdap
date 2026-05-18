@@ -1,52 +1,46 @@
-## ToyRoCC Software Stack. 
-This repository includes the following:
-* The necessary minimal code to generate a Spike library for extending Spike to support the accelerator and test its functionality.
-* A minimal C code to trigger the accelerator through custom instructions.
+## Girdap Software Stack
+
+This tree contains bare-metal and Linux C tests, PyTorch-generated benchmark
+case exporters, and FireMarshal workload metadata for the Girdap accelerators.
+
+### Layout
+
+* `src/`: C test and benchmark sources.
+* `common/`: shared C implementations.
+* `include/`: accelerator ABIs and shared headers.
+* `scripts/`: PyTorch exporters and result plotting helpers.
+* `workloads/c/`: regular C FireMarshal workloads.
+* `workloads/pytorch/`: PyTorch-generated benchmark workloads.
+* `overlay/`: files injected into Linux rootfs images.
+* `build/`: generated `.riscv` and `.dump` artifacts.
+
+### Standard PyTorch Benchmarks
+
+Tiny-BERT, ViT, and GPT-2 prefill each have matching workload variants for:
+
+* `attention-matmul`: `Matmul8x8AndOnlineAttention8x8BF16FpgaSafePackerExpLut512Config`
+* `attention-only`: `FusedOnlineAttention8x8BF16FpgaSafePackerExpLutConfig`
+* `matmul-only`: `MatmulAccel8x8BF16FpgaSafeConfig`
+* `softmax-only`: `SoftmaxAccel128Config`
+
+The workload JSONs live in `workloads/pytorch/bare/` and call
+`build-pytorch-benchmark.sh`, which regenerates the PyTorch cases and compiles
+the same C benchmark with the requested hardware mode flags.
+
+### Regular C Workloads
+
+Regular accelerator smoke tests and C microbenchmarks live under:
+
+* `workloads/c/bare/`
+* `workloads/c/linux/`
+
+These workloads use the existing `host-init.sh` scripts in their respective
+directories.
 
 ### Licensing
+
 New BF16 matmul, attention, transformer, Tiny-BERT, and related benchmark
 workloads added for this project are licensed under Apache-2.0. See
 `../LICENSE.Apache-2.0` and `../NOTICE`.
 
-Existing upstream ToyRoCC and third-party files keep their original licenses.
-
-### Layout
-* `src/`: C test and benchmark sources.
-* `build/`: generated `.riscv` and `.dump` artifacts.
-* `workloads/bare/`: FireMarshal bare-metal workload configs and host-init.
-* `workloads/linux/`: FireMarshal Linux workload configs and host-init.
-* `overlay/`: files injected into Linux rootfs images.
-
-### Bare Matmul Workloads
-* `workloads/bare/matmul-simple.json`: boots `systolic_matmul_simple_bfloat16_weight_stationary.riscv`.
-* `workloads/bare/matmul-random.json`: boots `systolic_matmul_random_bfloat16_weight_stationary.riscv`.
-* `workloads/bare/matmul-simple-ws.json`: boots `systolic_matmul_simple_bfloat16_weight_stationary.riscv`.
-* `workloads/bare/matmul-random-ws.json`: boots `systolic_matmul_random_bfloat16_weight_stationary.riscv`.
-* `workloads/bare/matmul-benchmark.json`: boots `systolic_matmul_benchmark_bfloat16_weight_stationary.riscv`.
-* `workloads/bare/matmul-simple-2x2.json`: boots `systolic_matmul_simple_bfloat16_weight_stationary_2x2.riscv`.
-* `workloads/bare/matmul-random-2x2.json`: boots `systolic_matmul_random_bfloat16_weight_stationary_2x2.riscv`.
-* `workloads/bare/matmul-simple-2x2-ws.json`: boots `systolic_matmul_simple_bfloat16_weight_stationary_2x2.riscv`.
-* `workloads/bare/matmul-random-2x2-ws.json`: boots `systolic_matmul_random_bfloat16_weight_stationary_2x2.riscv`.
-* `workloads/bare/matmul-benchmark-2x2.json`: boots `systolic_matmul_benchmark_bfloat16_weight_stationary_2x2.riscv`.
-* `workloads/linux/matmul-smoke-2x2.json`: boots Buildroot and runs the 2x2 GEMM smoke script.
-
-### Bare Softmax And Attention Workloads
-* `workloads/bare/softmax-smoke.json`: boots `softmax_norm_test.riscv`.
-* `workloads/bare/softmax-rows-bf16.json`: boots `softmax_rows_bf16_test.riscv`.
-* `workloads/bare/attention-bf16.json`: boots `attention_bf16_test.riscv`.
-
-### Expected Verilator Output:
-```sh
-# This is a real RTL simulation.
-azeer@azeer:~/git/chipyard/sims/verilator$ ./simulator-chipyard.harness-DummyToyRoCCConfig ../../generators/toyrocc/software/basic.riscv
-[UART] UART0 is here (stdin/stdout).
-Selam!
-```
-
-### Expected Spike Output:
-```sh
-# This is NOT a real RTL simulation.
-# Just testing functionality.
-azeer@azeer:~/git/chipyard/generators/toyrocc/software$ spike --extlib=libtoyrocc/libtoyrocc.so --extension=toy_rocc basic.riscv
-Selam!
-```
+Third-party files keep their original licenses.

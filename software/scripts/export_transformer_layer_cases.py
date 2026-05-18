@@ -176,8 +176,8 @@ def write_assets(cases: tuple[TransformerLayerCase, ...], out_dir: Path) -> None
         print_case_sample(case, data)
 
     with header.open("w", encoding="utf-8") as out:
-        out.write("#ifndef TOYROCC_GENERATED_TRANSFORMER_LAYER_CASES_H\n")
-        out.write("#define TOYROCC_GENERATED_TRANSFORMER_LAYER_CASES_H\n\n")
+        out.write("#ifndef GIRDAP_GENERATED_TRANSFORMER_LAYER_CASES_H\n")
+        out.write("#define GIRDAP_GENERATED_TRANSFORMER_LAYER_CASES_H\n\n")
         out.write("#include <stdint.h>\n\n")
         out.write(f"#define TRANSFORMER_LAYER_MAX_SEQ_LEN {max_seq_len}\n")
         out.write(f"#define TRANSFORMER_LAYER_MAX_D_MODEL {max_d_model}\n")

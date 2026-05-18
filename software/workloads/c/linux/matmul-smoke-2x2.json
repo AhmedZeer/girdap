@@ -1,0 +1,8 @@
+{
+  "name" : "matmul-smoke-linux-2x2",
+  "workdir" : "../../..",
+  "base" : "br-base.json",
+  "overlay" : "overlay",
+  "host-init" : "workloads/c/linux/host-init.sh",
+  "command" : "/root/run-matmul-smoke-2x2.sh"
+}

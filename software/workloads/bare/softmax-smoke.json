@@ -1,7 +1,0 @@
-{
-  "name" : "softmax-smoke-bare",
-  "workdir" : "../..",
-  "base" : "bare-base.json",
-  "host-init" : "workloads/bare/host-init.sh",
-  "bin" : "build/softmax_norm_test.riscv"
-}

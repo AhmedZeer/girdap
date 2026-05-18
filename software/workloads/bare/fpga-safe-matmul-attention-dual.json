@@ -1,7 +1,0 @@
-{
-  "name" : "fpga-safe-matmul-attention-dual-bare",
-  "workdir" : "../..",
-  "base" : "bare-base.json",
-  "host-init" : "workloads/bare/dual-rocc-host-init.sh",
-  "bin" : "build/fpga_safe_matmul_attention_dual_test.riscv"
-}

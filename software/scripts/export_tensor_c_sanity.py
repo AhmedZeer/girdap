@@ -59,8 +59,8 @@ def write_assets(out_dir: Path) -> None:
     source = out_dir / "tensor_c_sanity.c"
 
     with header.open("w", encoding="utf-8") as out:
-        out.write("#ifndef TOYROCC_GENERATED_TENSOR_C_SANITY_H\n")
-        out.write("#define TOYROCC_GENERATED_TENSOR_C_SANITY_H\n\n")
+        out.write("#ifndef GIRDAP_GENERATED_TENSOR_C_SANITY_H\n")
+        out.write("#define GIRDAP_GENERATED_TENSOR_C_SANITY_H\n\n")
         out.write("#include <stdint.h>\n\n")
         out.write("#define TENSOR_C_SANITY_ROWS 4\n")
         out.write("#define TENSOR_C_SANITY_COLS 4\n")

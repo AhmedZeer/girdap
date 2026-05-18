@@ -1,0 +1,7 @@
+{
+  "name" : "transformer-layer-dual-rocc-bare",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/pytorch/bare/transformer-layer-dual-rocc-host-init.sh",
+  "bin" : "build/transformer_layer_dual_rocc_test.riscv"
+}

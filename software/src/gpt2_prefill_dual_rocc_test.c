@@ -5,6 +5,7 @@
 #include "bfloat16_utils.h"
 #include "fpga_safe_attention.h"
 #include "generated/gpt2_prefill_cases.h"
+#include "online_softmax.h"
 #include "ws_gemm.h"
 
 #include <math.h>
@@ -13,6 +14,34 @@
 #include <string.h>
 
 #define LN_EPSILON 0.00001f
+
+#ifndef GIRDAP_HW_MATMUL
+#define GIRDAP_HW_MATMUL 1
+#endif
+
+#ifndef GIRDAP_HW_ATTENTION
+#define GIRDAP_HW_ATTENTION 1
+#endif
+
+#ifndef GIRDAP_HW_SOFTMAX
+#define GIRDAP_HW_SOFTMAX 0
+#endif
+
+#if GIRDAP_HW_ATTENTION && GIRDAP_HW_SOFTMAX
+#error "Use either fused attention hardware or softmax hardware for this benchmark, not both."
+#endif
+
+#if GIRDAP_HW_ATTENTION && GIRDAP_HW_MATMUL
+#define GIRDAP_BENCHMARK_MODE "attention+matmul"
+#elif GIRDAP_HW_ATTENTION
+#define GIRDAP_BENCHMARK_MODE "attention-only"
+#elif GIRDAP_HW_MATMUL
+#define GIRDAP_BENCHMARK_MODE "matmul-only"
+#elif GIRDAP_HW_SOFTMAX
+#define GIRDAP_BENCHMARK_MODE "softmax-only"
+#else
+#define GIRDAP_BENCHMARK_MODE "software-only"
+#endif
 
 static uint16_t sw_x[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL];
 static uint16_t sw_ln[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL];
@@ -28,6 +57,10 @@ static uint16_t sw_ffn_out[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL];
 static uint16_t sw_logits[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_VOCAB_SIZE];
 static float sw_scores[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_SEQ_LEN];
 static float sw_probs[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_SEQ_LEN];
+static uint16_t attn_scores_bf16[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_SEQ_LEN]
+    __attribute__((aligned(64)));
+static uint16_t attn_probs_bf16[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_SEQ_LEN]
+    __attribute__((aligned(64)));
 
 static uint16_t x[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL] __attribute__((aligned(64)));
 static uint16_t ln_out[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL] __attribute__((aligned(64)));
@@ -333,17 +366,133 @@ static int hw_gemm(
     int K,
     const ws_gemm_workspace_t *workspace,
     uint64_t *cycles) {
+#if GIRDAP_HW_MATMUL
   ws_gemm_stats_t stats;
   memset(&stats, 0, sizeof(stats));
   const int rc = ws_gemm8_bf16(A, lda, B, ldb, C, ldc, M, N, K, workspace, &stats);
   *cycles += stats.hw_e2e_cycles;
   return rc;
+#else
+  (void)workspace;
+  const uint64_t start = ws_read_cycles();
+  sw_matmul_bias_bf16(A, lda, B, ldb, 0, C, ldc, M, N, K);
+  *cycles += ws_read_cycles() - start;
+  return WS_GEMM_OK;
+#endif
+}
+
+static void sw_causal_attention_heads_from_buffers(
+    const gpt2_prefill_case_t *tc,
+    const uint16_t q[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL],
+    const uint16_t k[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL],
+    const uint16_t v[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL],
+    uint16_t out[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL],
+    gpt2_prefill_hw_stats_t *stats) {
+  const uint64_t total_start = ws_read_cycles();
+  const float scale = bf16_to_float(tc->scale_bf16);
+  for (int h = 0; h < tc->n_heads; h++) {
+    const int base = h * tc->head_dim;
+    for (int qr = 0; qr < tc->seq_len; qr++) {
+      uint64_t phase_start = ws_read_cycles();
+      for (int kv = 0; kv <= qr; kv++) {
+        double dot = 0.0;
+        for (int d = 0; d < tc->head_dim; d++) {
+          dot += (double)bf16_to_float(q[qr][base + d]) *
+                 (double)bf16_to_float(k[kv][base + d]);
+        }
+        sw_scores[qr][kv] = (float)(dot * (double)scale);
+      }
+      stats->attn_score_cycles += ws_read_cycles() - phase_start;
+
+      phase_start = ws_read_cycles();
+      float max_score = -INFINITY;
+      for (int kv = 0; kv <= qr; kv++) {
+        if (sw_scores[qr][kv] > max_score) {
+          max_score = sw_scores[qr][kv];
+        }
+      }
+      double denom = 0.0;
+      for (int kv = 0; kv <= qr; kv++) {
+        denom += exp((double)(sw_scores[qr][kv] - max_score));
+      }
+      for (int kv = 0; kv <= qr; kv++) {
+        sw_probs[qr][kv] = (float)(exp((double)(sw_scores[qr][kv] - max_score)) / denom);
+      }
+      stats->attn_accel_cycles += ws_read_cycles() - phase_start;
+
+      phase_start = ws_read_cycles();
+      for (int vc = 0; vc < tc->head_dim; vc++) {
+        double acc = 0.0;
+        for (int kv = 0; kv <= qr; kv++) {
+          acc += (double)sw_probs[qr][kv] *
+                 (double)bf16_to_float(v[kv][base + vc]);
+        }
+        out[qr][base + vc] = float_to_bf16((float)acc);
+      }
+      stats->attn_value_cycles += ws_read_cycles() - phase_start;
+    }
+  }
+  stats->attn_e2e_cycles += ws_read_cycles() - total_start;
+}
+
+static int softmax_hw_causal_attention_heads(
+    const gpt2_prefill_case_t *tc,
+    const uint16_t q[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL],
+    const uint16_t k[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL],
+    const uint16_t v[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL],
+    uint16_t out[GPT2_PREFILL_MAX_SEQ_LEN][GPT2_PREFILL_MAX_D_MODEL],
+    gpt2_prefill_hw_stats_t *stats) {
+  const uint64_t total_start = ws_read_cycles();
+  const float scale = bf16_to_float(tc->scale_bf16);
+  for (int h = 0; h < tc->n_heads; h++) {
+    const int base = h * tc->head_dim;
+    for (int qr = 0; qr < tc->seq_len; qr++) {
+      uint64_t phase_start = ws_read_cycles();
+      for (int kv = 0; kv <= qr; kv++) {
+        double dot = 0.0;
+        for (int d = 0; d < tc->head_dim; d++) {
+          dot += (double)bf16_to_float(q[qr][base + d]) *
+                 (double)bf16_to_float(k[kv][base + d]);
+        }
+        attn_scores_bf16[qr][kv] = float_to_bf16((float)(dot * (double)scale));
+      }
+      stats->attn_score_cycles += ws_read_cycles() - phase_start;
+
+      online_softmax_stats_t softmax_stats;
+      memset(&softmax_stats, 0, sizeof(softmax_stats));
+      const int softmax_rc = online_softmax_bf16(
+          &attn_scores_bf16[qr][0],
+          qr + 1,
+          &attn_probs_bf16[qr][0],
+          &softmax_stats);
+      stats->raw_hw_rc = (uint64_t)softmax_rc;
+      stats->attn_accel_cycles += softmax_stats.hw_e2e_cycles;
+      if (softmax_rc != ONLINE_SOFTMAX_OK) {
+        stats->attn_e2e_cycles += ws_read_cycles() - total_start;
+        return softmax_rc;
+      }
+
+      phase_start = ws_read_cycles();
+      for (int vc = 0; vc < tc->head_dim; vc++) {
+        double acc = 0.0;
+        for (int kv = 0; kv <= qr; kv++) {
+          acc += (double)bf16_to_float(attn_probs_bf16[qr][kv]) *
+                 (double)bf16_to_float(v[kv][base + vc]);
+        }
+        out[qr][base + vc] = float_to_bf16((float)acc);
+      }
+      stats->attn_value_cycles += ws_read_cycles() - phase_start;
+    }
+  }
+  stats->attn_e2e_cycles += ws_read_cycles() - total_start;
+  return WS_GEMM_OK;
 }
 
 static int hw_causal_attention_heads(
     const gpt2_prefill_case_t *tc,
     const fpga_safe_attention_workspace_t *workspace,
     gpt2_prefill_hw_stats_t *stats) {
+#if GIRDAP_HW_ATTENTION
   for (int h = 0; h < tc->n_heads; h++) {
     const int base = h * tc->head_dim;
     for (int qr = 0; qr < tc->seq_len; qr++) {
@@ -371,6 +520,14 @@ static int hw_causal_attention_heads(
     }
   }
   return FPGA_SAFE_ATTN_OK;
+#elif GIRDAP_HW_SOFTMAX
+  (void)workspace;
+  return softmax_hw_causal_attention_heads(tc, q_proj, k_proj, v_proj, context, stats);
+#else
+  (void)workspace;
+  sw_causal_attention_heads_from_buffers(tc, q_proj, k_proj, v_proj, context, stats);
+  return WS_GEMM_OK;
+#endif
 }
 
 static int hw_gpt2_prefill_forward(
@@ -545,9 +702,12 @@ int main(void) {
                                          GPT2_PREFILL_MAX_HEAD_DIM,
                                          GPT2_PREFILL_MAX_HEAD_DIM);
 
-  printf("=== Dual-RoCC GPT-2 Prefill Test ===\n");
-  printf("OPCODE_INFO,matmul=%d,attention=%d,maxK=512,causal=row_prefix_calls\n",
-         SA_MATMUL_OPCODE, SA_ATTN_OPCODE);
+  printf("=== Girdap GPT-2 Prefill Test ===\n");
+  printf("MODE_INFO,name=%s,matmul_hw=%d,attention_hw=%d,softmax_hw=%d\n",
+         GIRDAP_BENCHMARK_MODE, GIRDAP_HW_MATMUL, GIRDAP_HW_ATTENTION,
+         GIRDAP_HW_SOFTMAX);
+  printf("OPCODE_INFO,matmul=%d,attention=%d,softmax=%d,maxK=512,causal=row_prefix_calls\n",
+         SA_MATMUL_OPCODE, SA_ATTN_OPCODE, SOFTMAX_OPCODE);
   printf("CSV_HEADER,case,name,seq_len,d_model,n_heads,head_dim,hidden_dim,n_layers,vocab_size,cpu_cycles,hw_e2e_cycles,embedding_cycles,ln_cycles,qkv_proj_cycles,attn_e2e_cycles,attn_accel_cycles,attn_score_cycles,attn_value_cycles,out_proj_cycles,mlp_fc1_cycles,gelu_cycles,mlp_fc2_cycles,lm_head_cycles,bias_cycles,hw_rc,raw_hw_rc,speedup_x100,hw_max_abs_diff_x100000,cpu_ref_max_abs_diff_x100000,mismatches\n");
 
   int total_mismatches = 0;
@@ -613,7 +773,7 @@ int main(void) {
   }
 
   if (total_mismatches == 0) {
-    printf("PASS: dual-RoCC GPT-2 prefill matched PyTorch tolerance.\n");
+    printf("PASS: Girdap GPT-2 prefill matched PyTorch tolerance.\n");
   } else {
     printf("FAIL: total GPT-2 prefill mismatches = %d\n", total_mismatches);
   }

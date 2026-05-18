@@ -5,6 +5,7 @@
 #include "bfloat16_utils.h"
 #include "fpga_safe_attention.h"
 #include "generated/encoder_model_cases.h"
+#include "online_softmax.h"
 #include "ws_gemm.h"
 
 #include <math.h>
@@ -13,6 +14,34 @@
 #include <string.h>
 
 #define LN_EPSILON 0.00001f
+
+#ifndef GIRDAP_HW_MATMUL
+#define GIRDAP_HW_MATMUL 1
+#endif
+
+#ifndef GIRDAP_HW_ATTENTION
+#define GIRDAP_HW_ATTENTION 1
+#endif
+
+#ifndef GIRDAP_HW_SOFTMAX
+#define GIRDAP_HW_SOFTMAX 0
+#endif
+
+#if GIRDAP_HW_ATTENTION && GIRDAP_HW_SOFTMAX
+#error "Use either fused attention hardware or softmax hardware for this benchmark, not both."
+#endif
+
+#if GIRDAP_HW_ATTENTION && GIRDAP_HW_MATMUL
+#define GIRDAP_BENCHMARK_MODE "attention+matmul"
+#elif GIRDAP_HW_ATTENTION
+#define GIRDAP_BENCHMARK_MODE "attention-only"
+#elif GIRDAP_HW_MATMUL
+#define GIRDAP_BENCHMARK_MODE "matmul-only"
+#elif GIRDAP_HW_SOFTMAX
+#define GIRDAP_BENCHMARK_MODE "softmax-only"
+#else
+#define GIRDAP_BENCHMARK_MODE "software-only"
+#endif
 
 static uint16_t sw_buf0[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL];
 static uint16_t sw_buf1[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL];
@@ -32,6 +61,10 @@ static uint16_t sw_mlp_act[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_HIDDEN_D
 static uint16_t sw_mlp_out[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL];
 static float sw_scores[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_SEQ_LEN];
 static float sw_probs[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_SEQ_LEN];
+static uint16_t attn_scores_bf16[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_SEQ_LEN]
+    __attribute__((aligned(64)));
+static uint16_t attn_probs_bf16[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_SEQ_LEN]
+    __attribute__((aligned(64)));
 
 static uint16_t ln1_out[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL] __attribute__((aligned(64)));
 static uint16_t q_proj[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL] __attribute__((aligned(64)));
@@ -330,17 +363,143 @@ static int hw_gemm(
     int K,
     const ws_gemm_workspace_t *workspace,
     uint64_t *cycles) {
+#if GIRDAP_HW_MATMUL
   ws_gemm_stats_t stats;
   memset(&stats, 0, sizeof(stats));
   const int rc = ws_gemm8_bf16(A, lda, B, ldb, C, ldc, M, N, K, workspace, &stats);
   *cycles += stats.hw_e2e_cycles;
   return rc;
+#else
+  (void)workspace;
+  const uint64_t start = ws_read_cycles();
+  sw_matmul_bf16(A, lda, B, ldb, C, ldc, M, N, K);
+  *cycles += ws_read_cycles() - start;
+  return WS_GEMM_OK;
+#endif
+}
+
+static void sw_attention_heads_from_buffers(
+    const encoder_model_case_t *tc,
+    const uint16_t q[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL],
+    const uint16_t k[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL],
+    const uint16_t v[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL],
+    uint16_t out[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL],
+    encoder_hw_stats_t *stats) {
+  const uint64_t total_start = ws_read_cycles();
+  const float scale = bf16_to_float(tc->scale_bf16);
+  for (int h = 0; h < tc->n_heads; h++) {
+    const int base = h * tc->head_dim;
+    uint64_t phase_start = ws_read_cycles();
+    for (int qr = 0; qr < tc->seq_len; qr++) {
+      for (int kv = 0; kv < tc->seq_len; kv++) {
+        double dot = 0.0;
+        for (int d = 0; d < tc->head_dim; d++) {
+          dot += (double)bf16_to_float(q[qr][base + d]) *
+                 (double)bf16_to_float(k[kv][base + d]);
+        }
+        sw_scores[qr][kv] = (float)(dot * (double)scale);
+      }
+    }
+    stats->attn_score_cycles += ws_read_cycles() - phase_start;
+
+    phase_start = ws_read_cycles();
+    for (int qr = 0; qr < tc->seq_len; qr++) {
+      float max_score = -INFINITY;
+      for (int kv = 0; kv < tc->seq_len; kv++) {
+        if (sw_scores[qr][kv] > max_score) {
+          max_score = sw_scores[qr][kv];
+        }
+      }
+      double denom = 0.0;
+      for (int kv = 0; kv < tc->seq_len; kv++) {
+        denom += exp((double)(sw_scores[qr][kv] - max_score));
+      }
+      for (int kv = 0; kv < tc->seq_len; kv++) {
+        sw_probs[qr][kv] =
+            (float)(exp((double)(sw_scores[qr][kv] - max_score)) / denom);
+      }
+    }
+    stats->attn_accel_cycles += ws_read_cycles() - phase_start;
+
+    phase_start = ws_read_cycles();
+    for (int qr = 0; qr < tc->seq_len; qr++) {
+      for (int vc = 0; vc < tc->head_dim; vc++) {
+        double acc = 0.0;
+        for (int kv = 0; kv < tc->seq_len; kv++) {
+          acc += (double)sw_probs[qr][kv] *
+                 (double)bf16_to_float(v[kv][base + vc]);
+        }
+        out[qr][base + vc] = float_to_bf16((float)acc);
+      }
+    }
+    stats->attn_value_cycles += ws_read_cycles() - phase_start;
+  }
+  stats->attn_e2e_cycles += ws_read_cycles() - total_start;
+}
+
+static int softmax_hw_attention_heads(
+    const encoder_model_case_t *tc,
+    const uint16_t q[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL],
+    const uint16_t k[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL],
+    const uint16_t v[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL],
+    uint16_t out[ENCODER_MODEL_MAX_SEQ_LEN][ENCODER_MODEL_MAX_D_MODEL],
+    encoder_hw_stats_t *stats) {
+  const uint64_t total_start = ws_read_cycles();
+  const float scale = bf16_to_float(tc->scale_bf16);
+  for (int h = 0; h < tc->n_heads; h++) {
+    const int base = h * tc->head_dim;
+    uint64_t phase_start = ws_read_cycles();
+    for (int qr = 0; qr < tc->seq_len; qr++) {
+      for (int kv = 0; kv < tc->seq_len; kv++) {
+        double dot = 0.0;
+        for (int d = 0; d < tc->head_dim; d++) {
+          dot += (double)bf16_to_float(q[qr][base + d]) *
+                 (double)bf16_to_float(k[kv][base + d]);
+        }
+        attn_scores_bf16[qr][kv] = float_to_bf16((float)(dot * (double)scale));
+      }
+    }
+    stats->attn_score_cycles += ws_read_cycles() - phase_start;
+
+    online_softmax_stats_t softmax_stats;
+    memset(&softmax_stats, 0, sizeof(softmax_stats));
+    const int softmax_rc = online_softmax_bf16_rows(
+        &attn_scores_bf16[0][0],
+        tc->seq_len,
+        tc->seq_len,
+        ENCODER_MODEL_MAX_SEQ_LEN,
+        &attn_probs_bf16[0][0],
+        ENCODER_MODEL_MAX_SEQ_LEN,
+        &softmax_stats);
+    stats->raw_hw_rc = (uint64_t)softmax_rc;
+    stats->attn_accel_cycles += softmax_stats.hw_e2e_cycles;
+    if (softmax_rc != ONLINE_SOFTMAX_OK) {
+      stats->attn_e2e_cycles += ws_read_cycles() - total_start;
+      return softmax_rc;
+    }
+
+    phase_start = ws_read_cycles();
+    for (int qr = 0; qr < tc->seq_len; qr++) {
+      for (int vc = 0; vc < tc->head_dim; vc++) {
+        double acc = 0.0;
+        for (int kv = 0; kv < tc->seq_len; kv++) {
+          acc += (double)bf16_to_float(attn_probs_bf16[qr][kv]) *
+                 (double)bf16_to_float(v[kv][base + vc]);
+        }
+        out[qr][base + vc] = float_to_bf16((float)acc);
+      }
+    }
+    stats->attn_value_cycles += ws_read_cycles() - phase_start;
+  }
+  stats->attn_e2e_cycles += ws_read_cycles() - total_start;
+  return WS_GEMM_OK;
 }
 
 static int hw_attention_heads(
     const encoder_model_case_t *tc,
     const fpga_safe_attention_workspace_t *workspace,
     encoder_hw_stats_t *stats) {
+#if GIRDAP_HW_ATTENTION
   for (int h = 0; h < tc->n_heads; h++) {
     const int base = h * tc->head_dim;
     fpga_safe_attention_stats_t attn_stats;
@@ -366,6 +525,14 @@ static int hw_attention_heads(
     }
   }
   return FPGA_SAFE_ATTN_OK;
+#elif GIRDAP_HW_SOFTMAX
+  (void)workspace;
+  return softmax_hw_attention_heads(tc, q_proj, k_proj, v_proj, context, stats);
+#else
+  (void)workspace;
+  sw_attention_heads_from_buffers(tc, q_proj, k_proj, v_proj, context, stats);
+  return WS_GEMM_OK;
+#endif
 }
 
 static int hw_encoder_layer(
@@ -538,8 +705,12 @@ int main(void) {
                                          ENCODER_MODEL_MAX_HEAD_DIM,
                                          ENCODER_MODEL_MAX_HEAD_DIM);
 
-  printf("=== Dual-RoCC Encoder Model Test ===\n");
-  printf("OPCODE_INFO,matmul=%d,attention=%d\n", SA_MATMUL_OPCODE, SA_ATTN_OPCODE);
+  printf("=== Girdap Encoder Model Test ===\n");
+  printf("MODE_INFO,name=%s,matmul_hw=%d,attention_hw=%d,softmax_hw=%d\n",
+         GIRDAP_BENCHMARK_MODE, GIRDAP_HW_MATMUL, GIRDAP_HW_ATTENTION,
+         GIRDAP_HW_SOFTMAX);
+  printf("OPCODE_INFO,matmul=%d,attention=%d,softmax=%d\n",
+         SA_MATMUL_OPCODE, SA_ATTN_OPCODE, SOFTMAX_OPCODE);
   printf("CSV_HEADER,case,name,seq_len,d_model,n_heads,head_dim,hidden_dim,n_layers,cpu_cycles,hw_e2e_cycles,ln_residual_cycles,qkv_proj_cycles,attn_e2e_cycles,attn_accel_cycles,attn_score_cycles,attn_value_cycles,out_proj_cycles,mlp_fc1_cycles,gelu_cycles,mlp_fc2_cycles,hw_rc,raw_hw_rc,speedup_x100,hw_max_abs_diff_x100000,cpu_ref_max_abs_diff_x100000,mismatches\n");
 
   int total_mismatches = 0;
@@ -599,7 +770,7 @@ int main(void) {
   }
 
   if (total_mismatches == 0) {
-    printf("PASS: dual-RoCC encoder model matched PyTorch tolerance.\n");
+    printf("PASS: Girdap encoder model matched PyTorch tolerance.\n");
   } else {
     printf("FAIL: total encoder model mismatches = %d\n", total_mismatches);
   }

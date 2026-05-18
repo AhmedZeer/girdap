@@ -1,0 +1,8 @@
+{
+  "name" : "attention-fused-bfloat16-bare",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "isDram" : true,
+  "linux" : false,
+  "bin" : "build/attention_fused_bf16_test.riscv"
+}

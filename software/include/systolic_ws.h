@@ -1,5 +1,5 @@
-#ifndef TOYROCC_SYSTOLIC_WS_H
-#define TOYROCC_SYSTOLIC_WS_H
+#ifndef GIRDAP_SYSTOLIC_WS_H
+#define GIRDAP_SYSTOLIC_WS_H
 
 #include "rocc.h"
 

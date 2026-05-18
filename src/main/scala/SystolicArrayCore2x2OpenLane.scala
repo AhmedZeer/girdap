@@ -1,4 +1,4 @@
-package toyrocc
+package girdap
 
 import chisel3._
 import chisel3.util.Cat
@@ -64,7 +64,7 @@ class SystolicArrayCore2x2OpenLaneTop extends Module {
 object EmitSystolicArrayCore2x2OpenLane extends App {
   val targetDir =
     if (args.nonEmpty) args(0)
-    else "/home/ubuntu/firesim_build_disk/openlane_toyrocc/src"
+    else "/home/ubuntu/firesim_build_disk/openlane_girdap/src"
 
   circt.stage.ChiselStage.emitSystemVerilogFile(
     new SystolicArrayCore2x2OpenLaneTop,

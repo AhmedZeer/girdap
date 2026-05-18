@@ -1,7 +1,0 @@
-{
-  "name" : "fpga-safe-attention-bf16-bare",
-  "workdir" : "../..",
-  "base" : "bare-base.json",
-  "host-init" : "workloads/bare/host-init.sh",
-  "bin" : "build/fpga_safe_attention_bf16_test.riscv"
-}

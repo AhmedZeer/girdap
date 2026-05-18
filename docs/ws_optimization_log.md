@@ -2,16 +2,19 @@
 
 ## Scope
 
-These notes track the optimization work on the `4x4` weight-stationary RoCC systolic array path.
+These archived notes track earlier optimization work on the `4x4`
+weight-stationary RoCC systolic array path. The active Girdap hardware config
+surface has since been reduced to the configs listed in
+`chipyard/GirdapConfigs.scala`.
 
-- Active config: `chipyard.MatmulAccel4x4WSConfig`
+- Archived config: `chipyard.MatmulAccel4x4WSConfig`
 - Output-stationary path is intentionally ignored here
 
-## Current Config Facts
+## Archived Config Facts
 
-- The current WS config already uses a `128-bit` system bus in [chipyard/ToyConfigs.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/chipyard/ToyConfigs.scala).
-- A separate `256-bit` comparison config now exists as `chipyard.MatmulAccel4x4WS256Config` in [chipyard/ToyConfigs.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/chipyard/ToyConfigs.scala).
-- The WS RTL derives its transfer width from `cacheDataBits`, so wider TL beats directly increase `wordsPerBeat` in [src/main/scala/SystolicArrayWS.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/src/main/scala/SystolicArrayWS.scala).
+- The archived WS config used a `128-bit` system bus.
+- A separate archived `256-bit` comparison config existed as `chipyard.MatmulAccel4x4WS256Config`.
+- The WS RTL derives its transfer width from `cacheDataBits`, so wider TL beats directly increase `wordsPerBeat` in [src/main/scala/SystolicArrayWS.scala](/media/azeer/extra-segment/git/chipyard/generators/girdap/src/main/scala/SystolicArrayWS.scala).
 - With `xLen = 64` and `systemBusWidth = 128`, the current design moves `2` packed words per beat.
 
 ## Iterations Completed
@@ -29,8 +32,8 @@ Added internal WS counters for:
 
 Files:
 
-- [src/main/scala/SystolicArrayWS.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/src/main/scala/SystolicArrayWS.scala)
-- [software/include/systolic_ws.h](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/include/systolic_ws.h)
+- [src/main/scala/SystolicArrayWS.scala](/media/azeer/extra-segment/git/chipyard/generators/girdap/src/main/scala/SystolicArrayWS.scala)
+- [software/include/systolic_ws.h](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/include/systolic_ws.h)
 
 ### 2. Beat-buffered TL traffic
 
@@ -59,8 +62,8 @@ Changed the WS software drivers so A tiles are packed once per `m0` tile and reu
 
 Files:
 
-- [software/src/systolic_matmul_random_weight_stationary.c](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/src/systolic_matmul_random_weight_stationary.c)
-- [software/src/systolic_matmul_benchmark.c](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/src/systolic_matmul_benchmark.c)
+- [software/src/systolic_matmul_random_weight_stationary.c](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/src/systolic_matmul_random_weight_stationary.c)
+- [software/src/systolic_matmul_benchmark.c](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/src/systolic_matmul_benchmark.c)
 
 ### 5. Fused `run_preloaded` command
 
@@ -91,9 +94,9 @@ Also fixed software dependency generation so header changes rebuild binaries aut
 
 Files:
 
-- [software/src/systolic_matmul_random_weight_stationary.c](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/src/systolic_matmul_random_weight_stationary.c)
-- [software/src/systolic_matmul_benchmark.c](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/src/systolic_matmul_benchmark.c)
-- [software/Makefile](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/Makefile)
+- [software/src/systolic_matmul_random_weight_stationary.c](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/src/systolic_matmul_random_weight_stationary.c)
+- [software/src/systolic_matmul_benchmark.c](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/src/systolic_matmul_benchmark.c)
+- [software/Makefile](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/Makefile)
 
 ### 7. Shared WS GEMM library
 
@@ -101,8 +104,8 @@ Moved the weight-stationary GEMM path out of the test programs into a reusable l
 
 New files:
 
-- [software/include/ws_gemm.h](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/include/ws_gemm.h)
-- [software/common/ws_gemm.c](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/common/ws_gemm.c)
+- [software/include/ws_gemm.h](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/include/ws_gemm.h)
+- [software/common/ws_gemm.c](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/common/ws_gemm.c)
 
 Current library entry points:
 
@@ -122,7 +125,7 @@ Added a second WS config so bus-width experiments do not overwrite the `128-bit`
 
 File:
 
-- [chipyard/ToyConfigs.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/chipyard/ToyConfigs.scala)
+- [chipyard/GirdapConfigs.scala](/media/azeer/extra-segment/git/chipyard/generators/girdap/chipyard/GirdapConfigs.scala)
 
 Config:
 
@@ -154,7 +157,7 @@ Interpretation:
 
 Implemented and validated:
 
-- multiple in-flight TL source IDs for B-tile preload in [src/main/scala/SystolicArrayWS.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/src/main/scala/SystolicArrayWS.scala)
+- multiple in-flight TL source IDs for B-tile preload in [src/main/scala/SystolicArrayWS.scala](/media/azeer/extra-segment/git/chipyard/generators/girdap/src/main/scala/SystolicArrayWS.scala)
 
 Design intent:
 
@@ -190,12 +193,12 @@ Interpretation:
 
 Added a cleaner software path for weight reuse in the shared library:
 
-- `ws_gemm_prepare_packed_b_u16(...)` in [software/include/ws_gemm.h](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/include/ws_gemm.h)
-- implementation in [software/common/ws_gemm.c](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/common/ws_gemm.c)
+- `ws_gemm_prepare_packed_b_u16(...)` in [software/include/ws_gemm.h](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/include/ws_gemm.h)
+- implementation in [software/common/ws_gemm.c](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/common/ws_gemm.c)
 
 Also added a dedicated reuse benchmark:
 
-- [software/src/systolic_matmul_reuse_weight_stationary.c](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/software/src/systolic_matmul_reuse_weight_stationary.c)
+- [software/src/systolic_matmul_reuse_weight_stationary.c](/media/azeer/extra-segment/git/chipyard/generators/girdap/software/src/systolic_matmul_reuse_weight_stationary.c)
 
 Design intent:
 
@@ -387,7 +390,7 @@ Short version:
 
 Yes, potentially.
 
-If `systemBusWidth` in [chipyard/ToyConfigs.scala](/media/azeer/extra-segment/git/chipyard/generators/toyrocc/chipyard/ToyConfigs.scala) is increased from `128` to `256`, then with `xLen = 64` the WS RTL would move `4` packed words per beat instead of `2`.
+If `systemBusWidth` in [chipyard/GirdapConfigs.scala](/media/azeer/extra-segment/git/chipyard/generators/girdap/chipyard/GirdapConfigs.scala) is increased from `128` to `256`, then with `xLen = 64` the WS RTL would move `4` packed words per beat instead of `2`.
 
 What that should help:
 

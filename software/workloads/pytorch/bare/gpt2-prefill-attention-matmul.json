@@ -1,0 +1,7 @@
+{
+  "name" : "gpt2-prefill-attention-matmul-bare",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/pytorch/bare/gpt2-prefill-attention-matmul-host-init.sh",
+  "bin" : "build/gpt2_prefill_dual_rocc_test.riscv"
+}

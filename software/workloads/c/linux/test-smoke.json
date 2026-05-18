@@ -1,0 +1,8 @@
+{
+  "name" : "test-smoke",
+  "base" : "br-base.json",
+  "workdir" : "../../..",
+  "overlay" : "overlay",
+  "host-init" : "workloads/c/linux/host-init.sh",
+  "command" : "echo !!selamlar knk!!"
+}

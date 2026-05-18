@@ -1,7 +1,0 @@
-{
-  "name" : "gpt2-prefill-dual-rocc-bare",
-  "workdir" : "../..",
-  "base" : "bare-base.json",
-  "host-init" : "workloads/bare/gpt2-prefill-dual-rocc-host-init.sh",
-  "bin" : "build/gpt2_prefill_dual_rocc_test.riscv"
-}

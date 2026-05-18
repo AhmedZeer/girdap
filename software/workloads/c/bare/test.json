@@ -1,0 +1,7 @@
+{
+  "name" : "test",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/c/bare/host-init.sh",
+  "bin" : "build/test.riscv"
+}

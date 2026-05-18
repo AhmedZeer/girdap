@@ -172,7 +172,7 @@ lazy val chipyard = {
   // Use explicit Project(...) so the project id remains 'chipyard'
   val baseProjects: Seq[ProjectReference] =
     Seq(
-      toyrocc,
+      girdap,
       testchipip, rocketchip, boom, rocketchip_blocks, rocketchip_inclusive_cache,
       icenet, tracegen,
       constellation, barf, shuttle, rerocc,
@@ -222,7 +222,7 @@ lazy val chipyard = {
   val optionalModules: Seq[(String, ProjectReference)] = Seq(
     // Generators with Chipyard-facing glue compiled from their repos
     "cva6" -> cva6,
-    "toyrocc" -> toyrocc,
+    "girdap" -> girdap,
     "ibex" -> ibex,
     "vexiiriscv" -> vexiiriscv,
     "riscv-sodor" -> sodor,
@@ -261,8 +261,8 @@ lazy val chipyard = {
   cy
 }
 
-// lazy val toyrocc = (project in file("generators/toyrocc")).settings(commonSettings).dependsOn(rocketchip)
-lazy val toyrocc = freshProject("toyrocc", file("generators/toyrocc"))
+// lazy val girdap = (project in file("generators/girdap")).settings(commonSettings).dependsOn(rocketchip)
+lazy val girdap = freshProject("girdap", file("generators/girdap"))
   .dependsOn(rocketchip)
   .settings(libraryDependencies ++= rocketLibDeps.value)
   .settings(commonSettings)

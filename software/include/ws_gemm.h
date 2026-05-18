@@ -1,5 +1,5 @@
-#ifndef TOYROCC_WS_GEMM_H
-#define TOYROCC_WS_GEMM_H
+#ifndef GIRDAP_WS_GEMM_H
+#define GIRDAP_WS_GEMM_H
 
 #include "systolic_ws.h"
 

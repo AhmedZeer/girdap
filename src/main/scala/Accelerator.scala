@@ -1,4 +1,4 @@
-package toyrocc
+package girdap
 
 import freechips.rocketchip.diplomacy._
 import freechips.rocketchip.tile._
@@ -60,7 +60,7 @@ class FusedOnlineAttention8x8BF16FpgaSafe extends Config((site, here, up) => {
         precision = 16,
         nRows = 8,
         nCols = 8,
-        maxK = 256,
+        maxK = 512,
         fixedPointFracBits = 8,
         accumBits = 64,
         softmaxIntPrecision = 32,
@@ -104,7 +104,7 @@ class FusedOnlineAttention8x8BF16FpgaSafePackerExpLut extends Config((site, here
         precision = 16,
         nRows = 8,
         nCols = 8,
-        maxK = 256,
+        maxK = 512,
         fixedPointFracBits = 8,
         accumBits = 64,
         softmaxIntPrecision = 10,

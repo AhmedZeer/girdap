@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Plot GEMM software and hardware cycle counts from a toyrocc log."
+        description="Plot GEMM software and hardware cycle counts from a girdap log."
     )
     parser.add_argument(
         "logfile",

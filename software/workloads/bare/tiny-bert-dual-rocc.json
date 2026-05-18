@@ -1,7 +1,0 @@
-{
-  "name" : "tiny-bert-dual-rocc-bare",
-  "workdir" : "../..",
-  "base" : "bare-base.json",
-  "host-init" : "workloads/bare/tiny-bert-dual-rocc-host-init.sh",
-  "bin" : "build/tiny_bert_dual_rocc_test.riscv"
-}

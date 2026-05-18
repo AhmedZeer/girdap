@@ -1,5 +1,5 @@
-#ifndef TOYROCC_ATTENTION_H
-#define TOYROCC_ATTENTION_H
+#ifndef GIRDAP_ATTENTION_H
+#define GIRDAP_ATTENTION_H
 
 #include "online_softmax.h"
 #include "ws_gemm.h"

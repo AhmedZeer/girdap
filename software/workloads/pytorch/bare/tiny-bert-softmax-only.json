@@ -1,0 +1,7 @@
+{
+  "name" : "tiny-bert-softmax-only-bare",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/pytorch/bare/tiny-bert-softmax-only-host-init.sh",
+  "bin" : "build/tiny_bert_dual_rocc_test.riscv"
+}
