@@ -4,7 +4,7 @@
 set -euo pipefail
 
 if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
-  echo "usage: $0 <tiny-bert|vit|gpt2-prefill> <attention-matmul|attention-only|matmul-only|softmax-only> [dual-rocc|matmul-rocc|attention-rocc|softmax-rocc]" >&2
+  echo "usage: $0 <tiny-bert|vit|gpt2-prefill|attention-operator> <attention-matmul|attention-only|matmul-only|softmax-only> [dual-rocc|matmul-rocc|attention-rocc|softmax-rocc]" >&2
   exit 2
 fi
 
@@ -38,6 +38,11 @@ case "${BENCHMARK}" in
     GENERATE_LABEL="PyTorch GPT-2 prefill cases"
     GENERATE_CMD=("${PYTHON_BIN}" scripts/export_gpt2_prefill_cases.py)
     TARGET="build/gpt2_prefill_dual_rocc_test.riscv"
+    ;;
+  attention-operator)
+    GENERATE_LABEL="PyTorch attention operator cases"
+    GENERATE_CMD=("${PYTHON_BIN}" scripts/export_attention_operator_cases.py)
+    TARGET="build/attention_operator_hwpack_test.riscv"
     ;;
   *)
     echo "unknown benchmark '${BENCHMARK}'" >&2

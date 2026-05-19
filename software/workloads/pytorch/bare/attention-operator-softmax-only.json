@@ -1,0 +1,7 @@
+{
+  "name" : "attention-operator-softmax-only-bare",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/pytorch/bare/attention-operator-softmax-only-host-init.sh",
+  "bin" : "build/attention_operator_hwpack_test.riscv"
+}

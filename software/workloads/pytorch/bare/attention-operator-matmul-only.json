@@ -1,0 +1,7 @@
+{
+  "name" : "attention-operator-matmul-only-bare",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/pytorch/bare/attention-operator-matmul-only-host-init.sh",
+  "bin" : "build/attention_operator_hwpack_test.riscv"
+}

@@ -1,0 +1,7 @@
+{
+  "name" : "tiny-bert-gemmini-bf16-bare",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/pytorch/bare/tiny-bert-gemmini-bf16-host-init.sh",
+  "bin" : "build/tiny_bert_gemmini_bf16_test.riscv"
+}
