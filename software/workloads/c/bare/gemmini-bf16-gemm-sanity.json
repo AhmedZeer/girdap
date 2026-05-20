@@ -1,0 +1,7 @@
+{
+  "name" : "gemmini-bf16-gemm-sanity-bare",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/c/bare/gemmini-bf16-gemm-sanity-host-init.sh",
+  "bin" : "build/gemmini_bf16_gemm_sanity.riscv"
+}
