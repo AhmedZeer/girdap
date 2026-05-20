@@ -1,0 +1,171 @@
+hardware,testbench,case,shape,max_diff,software_cycles,hardware_cycles,speedup
+iri,attnopr,0,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00292,62755,5226,12.00
+iri,attnopr,1,q_rows=8 kv_rows=9 d_k=16 value_cols=8,0.00170,68377,5578,12.25
+iri,attnopr,2,q_rows=8 kv_rows=16 d_k=16 value_cols=8,0.00244,120422,6532,18.43
+iri,attnopr,3,q_rows=16 kv_rows=16 d_k=16 value_cols=16,0.00219,272238,14051,19.37
+iri,attnopr,4,q_rows=8 kv_rows=64 d_k=64 value_cols=8,0.00244,952237,58164,16.37
+iri,attnopr,5,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00292,61182,4735,12.92
+iri,attnopr,6,q_rows=8 kv_rows=9 d_k=16 value_cols=8,0.00640,68245,5249,13.00
+iri,attnopr,7,q_rows=8 kv_rows=16 d_k=16 value_cols=8,0.01074,120370,6426,18.73
+iri,attnopr,8,q_rows=16 kv_rows=16 d_k=16 value_cols=16,0.01367,271972,13798,19.71
+iri,attnopr,9,q_rows=8 kv_rows=64 d_k=64 value_cols=8,0.00567,952461,48623,19.58
+iri,attnopr,10,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00390,64062,4611,13.89
+iri,attnopr,11,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00195,60941,4581,13.30
+iri,attnopr,12,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00195,60747,4611,13.17
+iri,attnopr,13,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.04321,5769686,365483,15.78
+iri,attnopr,14,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.00292,5577900,334734,16.66
+iri,attnopr,15,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.00634,5598138,329553,16.98
+iri,attnopr,16,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.07507,44699338,723374,61.79
+iri,attnopr,17,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.00221,43273190,716367,60.40
+iri,attnopr,18,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.00872,43380712,715212,60.65
+iri,attnopr,19,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.05773,106002706,1411093,75.12
+iri,attnopr,20,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.00244,102556417,1406445,72.91
+iri,attnopr,21,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.00781,102945313,1407163,73.15
+iri,attnopr,22,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.06164,567526706,6149069,92.29
+iri,attnopr,23,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.00317,561633130,6133571,91.56
+iri,attnopr,24,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.00934,562272531,6134490,91.65
+iri,attnopr,25,q_rows=8 kv_rows=512 d_k=64 value_cols=64,0.00457,13629216,713574,19.09
+iri,attnopr,26,q_rows=64 kv_rows=512 d_k=256 value_cols=64,0.00469,230807393,3537825,65.23
+iri,attnopr,27,q_rows=32 kv_rows=512 d_k=512 value_cols=64,0.00439,198102923,5118307,38.70
+vasat,attnopr,0,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00292,62791,5349,11.73
+vasat,attnopr,1,q_rows=8 kv_rows=9 d_k=16 value_cols=8,0.00170,68323,5598,12.20
+vasat,attnopr,2,q_rows=8 kv_rows=16 d_k=16 value_cols=8,0.00244,120220,6459,18.61
+vasat,attnopr,3,q_rows=16 kv_rows=16 d_k=16 value_cols=16,0.00219,272279,14001,19.44
+vasat,attnopr,4,q_rows=8 kv_rows=64 d_k=64 value_cols=8,0.00244,952371,57762,16.48
+vasat,attnopr,5,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00292,61244,4713,12.99
+vasat,attnopr,6,q_rows=8 kv_rows=9 d_k=16 value_cols=8,0.00640,68348,5212,13.11
+vasat,attnopr,7,q_rows=8 kv_rows=16 d_k=16 value_cols=8,0.01074,120284,6419,18.73
+vasat,attnopr,8,q_rows=16 kv_rows=16 d_k=16 value_cols=16,0.01367,272046,13721,19.82
+vasat,attnopr,9,q_rows=8 kv_rows=64 d_k=64 value_cols=8,0.00567,952650,48501,19.64
+vasat,attnopr,10,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00390,64280,4614,13.93
+vasat,attnopr,11,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00195,60810,4602,13.21
+vasat,attnopr,12,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00195,60808,4647,13.08
+vasat,attnopr,13,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.04321,5770243,366920,15.72
+vasat,attnopr,14,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.00292,5578475,332152,16.79
+vasat,attnopr,15,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.00634,5599787,330241,16.95
+vasat,attnopr,16,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.07507,44696906,723023,61.81
+vasat,attnopr,17,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.00221,43271061,716451,60.39
+vasat,attnopr,18,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.00872,43378115,713289,60.81
+vasat,attnopr,19,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.05773,105999526,1411798,75.08
+vasat,attnopr,20,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.00244,102562978,1407973,72.84
+vasat,attnopr,21,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.00781,102941358,1407674,73.12
+vasat,attnopr,22,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.06164,567534233,6146408,92.33
+vasat,attnopr,23,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.00317,561642385,6134004,91.56
+vasat,attnopr,24,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.00934,562283475,6133539,91.67
+vasat,attnopr,25,q_rows=8 kv_rows=512 d_k=64 value_cols=64,0.00457,13638760,710830,19.18
+vasat,attnopr,26,q_rows=64 kv_rows=512 d_k=256 value_cols=64,0.00469,230808375,3537863,65.23
+vasat,attnopr,27,q_rows=32 kv_rows=512 d_k=512 value_cols=64,0.00439,198133196,5115064,38.73
+kucuk,attnopr,0,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00585,64882,45077,1.43
+kucuk,attnopr,1,q_rows=8 kv_rows=9 d_k=16 value_cols=8,0.00341,70796,51336,1.37
+kucuk,attnopr,2,q_rows=8 kv_rows=16 d_k=16 value_cols=8,0.00488,124024,81107,1.52
+kucuk,attnopr,3,q_rows=16 kv_rows=16 d_k=16 value_cols=16,0.00439,282026,161820,1.74
+kucuk,attnopr,4,q_rows=8 kv_rows=64 d_k=64 value_cols=8,0.01000,993275,385860,2.57
+kucuk,attnopr,5,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00683,62852,43069,1.45
+kucuk,attnopr,6,q_rows=8 kv_rows=9 d_k=16 value_cols=8,0.00488,70326,51161,1.37
+kucuk,attnopr,7,q_rows=8 kv_rows=16 d_k=16 value_cols=8,0.00781,124105,81255,1.52
+kucuk,attnopr,8,q_rows=16 kv_rows=16 d_k=16 value_cols=16,0.00976,281494,161440,1.74
+kucuk,attnopr,9,q_rows=8 kv_rows=64 d_k=64 value_cols=8,0.01342,993346,381964,2.60
+kucuk,attnopr,10,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.01171,66325,46593,1.42
+kucuk,attnopr,11,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00390,62719,42952,1.46
+kucuk,attnopr,12,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00683,62895,43098,1.45
+kucuk,attnopr,13,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.07116,6075333,2015223,3.01
+kucuk,attnopr,14,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.01876,5873544,1787270,3.28
+kucuk,attnopr,15,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.03451,5896919,1810284,3.25
+kucuk,attnopr,16,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.06591,46987213,11461013,4.09
+kucuk,attnopr,17,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.01593,45482824,9965233,4.56
+kucuk,attnopr,18,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.02966,45612843,10087048,4.52
+kucuk,attnopr,19,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.06326,111427166,26881331,4.14
+kucuk,attnopr,20,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.00646,107794643,23219186,4.64
+kucuk,attnopr,21,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.01611,108242883,23579872,4.59
+kucuk,attnopr,22,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.09136,601103468,50329099,11.94
+kucuk,attnopr,23,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.02494,594895652,44091518,13.49
+kucuk,attnopr,24,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.04992,595584947,44779674,13.30
+kucuk,attnopr,25,q_rows=8 kv_rows=512 d_k=64 value_cols=64,0.01855,14427143,3664977,3.93
+kucuk,attnopr,26,q_rows=64 kv_rows=512 d_k=256 value_cols=64,0.02111,243599595,23402951,10.40
+kucuk,attnopr,27,q_rows=32 kv_rows=512 d_k=512 value_cols=64,0.01599,208862461,17491503,11.94
+minik,attnopr,0,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00488,64982,35513,1.82
+minik,attnopr,1,q_rows=8 kv_rows=9 d_k=16 value_cols=8,0.02978,70820,38964,1.81
+minik,attnopr,2,q_rows=8 kv_rows=16 d_k=16 value_cols=8,0.00341,124366,66793,1.86
+minik,attnopr,3,q_rows=16 kv_rows=16 d_k=16 value_cols=16,0.00390,282383,175877,1.60
+minik,attnopr,4,q_rows=8 kv_rows=64 d_k=64 value_cols=8,0.00317,994088,1111475,0.89
+minik,attnopr,5,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.02343,63002,34793,1.81
+minik,attnopr,6,q_rows=8 kv_rows=9 d_k=16 value_cols=8,0.05029,70615,38934,1.81
+minik,attnopr,7,q_rows=8 kv_rows=16 d_k=16 value_cols=8,0.01464,124373,66719,1.86
+minik,attnopr,8,q_rows=16 kv_rows=16 d_k=16 value_cols=16,0.02539,282138,175596,1.60
+minik,attnopr,9,q_rows=8 kv_rows=64 d_k=64 value_cols=8,0.00732,993641,1110888,0.89
+minik,attnopr,10,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.16992,65874,34693,1.89
+minik,attnopr,11,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.00488,62865,34697,1.81
+minik,attnopr,12,q_rows=8 kv_rows=8 d_k=16 value_cols=8,0.02050,62912,34700,1.81
+minik,attnopr,13,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.02001,6054413,6721870,0.90
+minik,attnopr,14,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.00109,5877922,6714400,0.87
+minik,attnopr,15,q_rows=8 kv_rows=256 d_k=64 value_cols=64,0.00659,5894017,6714762,0.87
+minik,attnopr,16,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.04882,46812135,53173264,0.88
+minik,attnopr,17,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.00183,45512550,53160932,0.85
+minik,attnopr,18,q_rows=128 kv_rows=128 d_k=64 value_cols=64,0.01171,45602453,53155061,0.85
+minik,attnopr,19,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.04296,111020530,125854721,0.88
+minik,attnopr,20,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.00463,107876733,125880319,0.85
+minik,attnopr,21,q_rows=197 kv_rows=197 d_k=64 value_cols=64,0.01464,108186624,125853595,0.85
+minik,attnopr,22,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.04296,600370750,802247743,0.74
+minik,attnopr,23,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.00146,595016422,802288858,0.74
+minik,attnopr,24,q_rows=256 kv_rows=256 d_k=256 value_cols=128,0.00854,595536906,802251317,0.74
+minik,attnopr,25,q_rows=8 kv_rows=512 d_k=64 value_cols=64,0.00097,14437072,15893426,0.90
+minik,attnopr,26,q_rows=64 kv_rows=512 d_k=256 value_cols=64,0.00109,243684952,340281494,0.71
+minik,attnopr,27,q_rows=32 kv_rows=512 d_k=512 value_cols=64,0.00079,208906609,312861219,0.66
+iri,gpt2prefill,0,seq=16 d_model=64 heads=4 head_dim=16 hidden=128 layers=1 vocab=128,0.06738,14761172,2368800,6.23
+iri,gpt2prefill,1,seq=32 d_model=64 heads=4 head_dim=16 hidden=128 layers=1 vocab=128,0.06445,30567317,4276246,7.14
+iri,gpt2prefill,2,seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=256,0.09765,303818326,20485844,14.83
+iri,gpt2prefill,3,seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=256,0.10546,641445862,47185298,13.59
+iri,gpt2prefill,4,seq=256 d_model=512 heads=8 head_dim=64 hidden=512 layers=1 vocab=512,0.23046,16823736498,558118688,30.14
+iri,gpt2prefill,5,seq=512 d_model=512 heads=4 head_dim=128 hidden=512 layers=1 vocab=512,0.24218,35354434298,1861006560,18.99
+vasat,gpt2prefill,0,seq=16 d_model=64 heads=4 head_dim=16 hidden=128 layers=1 vocab=128,0.00390,14762704,14471093,1.02
+vasat,gpt2prefill,1,seq=32 d_model=64 heads=4 head_dim=16 hidden=128 layers=1 vocab=128,0.00488,30568608,29214546,1.04
+vasat,gpt2prefill,2,seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=256,0.00781,302205173,291989102,1.03
+vasat,gpt2prefill,3,seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=256,0.00781,638171636,593222669,1.07
+vasat,gpt2prefill,4,seq=256 d_model=512 heads=8 head_dim=64 hidden=512 layers=1 vocab=512,0.00781,16727225011,16059667305,1.04
+vasat,gpt2prefill,5,seq=512 d_model=512 heads=4 head_dim=128 hidden=512 layers=1 vocab=512,0.00781,35161290743,32878725872,1.06
+kucuk,gpt2prefill,0,seq=16 d_model=64 heads=4 head_dim=16 hidden=128 layers=1 vocab=128,0.06738,14134216,2697807,5.23
+kucuk,gpt2prefill,1,seq=32 d_model=64 heads=4 head_dim=16 hidden=128 layers=1 vocab=128,0.06445,29323669,5800537,5.05
+kucuk,gpt2prefill,2,seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=256,0.09765,286696845,30315094,9.45
+kucuk,gpt2prefill,3,seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=256,0.10546,607328964,92395775,6.57
+kucuk,gpt2prefill,4,seq=256 d_model=512 heads=8 head_dim=64 hidden=512 layers=1 vocab=512,0.23046,15791012380,1173160395,13.46
+kucuk,gpt2prefill,5,seq=512 d_model=512 heads=4 head_dim=128 hidden=512 layers=1 vocab=512,0.24218,33288962290,4073415626,8.17
+minik,gpt2prefill,0,seq=16 d_model=64 heads=4 head_dim=16 hidden=128 layers=1 vocab=128,0.00585,14764272,14588377,1.01
+minik,gpt2prefill,1,seq=32 d_model=64 heads=4 head_dim=16 hidden=128 layers=1 vocab=128,0.00585,30571948,29867935,1.02
+minik,gpt2prefill,2,seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=256,0.02343,303835879,300423312,1.01
+minik,gpt2prefill,3,seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=256,0.01770,641469707,629209401,1.01
+minik,gpt2prefill,4,seq=256 d_model=512 heads=8 head_dim=64 hidden=512 layers=1 vocab=512,0.04101,16727288238,16598529146,1.00
+minik,gpt2prefill,5,seq=512 d_model=512 heads=4 head_dim=128 hidden=512 layers=1 vocab=512,0.04345,35161311208,35037849674,1.00
+iri,tinybert,0,seq=32 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.00585,112699076,8555842,13.17
+iri,tinybert,1,seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.00927,243662564,14199734,17.15
+iri,tinybert,2,seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.01000,555822394,25866211,21.48
+iri,tinybert,3,seq=128 d_model=512 heads=8 head_dim=64 hidden=512 layers=1 vocab=512 classes=2,0.02270,6866851850,139465295,49.23
+iri,tinybert,4,seq=128 d_model=512 heads=8 head_dim=64 hidden=512 layers=1 vocab=512 classes=2,0.03393,6866805211,139436343,49.24
+iri,tinybert,0,seq=32 d_model=64 heads=4 head_dim=16 hidden=256 layers=1 vocab=512 classes=2,0.00677,39562973,4733231,8.35
+iri,tinybert,1,seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.00170,255329021,14312669,17.83
+iri,tinybert,2,seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.01000,578163200,26167071,22.09
+iri,tinybert,3,seq=256 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2,0.02343,4290087627,95642659,44.85
+iri,tinybert,4,seq=512 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2,0.03125,10468199346,197920939,52.89
+iri,tinybert,5,seq=512 d_model=512 heads=8 head_dim=64 hidden=512 layers=1 vocab=512 classes=2,0.00671,34632224933,482408459,71.79
+iri,tinybert,0,seq=32 d_model=64 heads=4 head_dim=16 hidden=256 layers=1 vocab=512 classes=2,0.00677,39562973,4733231,8.35
+iri,tinybert,1,seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.00170,255329021,14312669,17.83
+iri,tinybert,2,seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.01000,578163200,26167071,22.09
+iri,tinybert,3,seq=256 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2,0.02343,4290087627,95642659,44.85
+iri,tinybert,4,seq=512 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2,0.03125,10468199346,197920939,52.89
+iri,tinybert,5,seq=512 d_model=512 heads=8 head_dim=64 hidden=512 layers=1 vocab=512 classes=2,0.00671,34632224933,482408459,71.79
+vasat,tinybert,0,seq=32 d_model=64 heads=4 head_dim=16 hidden=256 layers=1 vocab=512 classes=2,0.00048,38997388,33382039,1.16
+vasat,tinybert,1,seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.00042,252118368,210902439,1.19
+vasat,tinybert,2,seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.00073,589716427,421721866,1.39
+vasat,tinybert,3,seq=256 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2,0.00146,4374546638,3172590000,1.37
+vasat,tinybert,4,seq=512 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2,0.00292,11208205007,6353330653,1.76
+vasat,tinybert,5,seq=512 d_model=512 heads=8 head_dim=64 hidden=512 layers=1 vocab=512 classes=2,0.00061,35298738657,25458402319,1.38
+kucuk,tinybert,0,seq=32 d_model=64 heads=4 head_dim=16 hidden=256 layers=1 vocab=512 classes=2,0.00677,38832080,9148223,4.24
+kucuk,tinybert,1,seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.00146,250946963,45901846,5.46
+kucuk,tinybert,2,seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.00988,585069723,156856774,3.72
+kucuk,tinybert,3,seq=256 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2,0.02246,4338873389,1008916405,4.30
+kucuk,tinybert,4,seq=512 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2,0.03222,11065782442,3899444485,2.83
+minik,tinybert,0,seq=32 d_model=64 heads=4 head_dim=16 hidden=256 layers=1 vocab=512 classes=2,0.00048,37938791,36131222,1.05
+minik,tinybert,1,seq=64 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.00036,243296013,236889520,1.02
+minik,tinybert,2,seq=128 d_model=128 heads=4 head_dim=32 hidden=256 layers=1 vocab=512 classes=2,0.00048,554190263,530075352,1.04
+minik,tinybert,3,seq=256 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2,0.00244,4089416768,4029164933,1.01
+minik,tinybert,4,seq=512 d_model=256 heads=4 head_dim=64 hidden=256 layers=1 vocab=512 classes=2,0.00292,10068160080,9806398709,1.02
+minik,tinybert,5,seq=512 d_model=512 heads=8 head_dim=64 hidden=512 layers=1 vocab=512 classes=2,0.00061,33019115477,32359957590,1.02

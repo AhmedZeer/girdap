@@ -39,8 +39,5 @@ directories.
 
 ### Licensing
 
-New BF16 matmul, attention, transformer, Tiny-BERT, and related benchmark
-workloads added for this project are licensed under Apache-2.0. See
-`../LICENSE.Apache-2.0` and `../NOTICE`.
-
-Third-party files keep their original licenses.
+The Girdap software stack is licensed under the Apache License, Version 2.0.
+See `../LICENSE` and `../NOTICE`.
