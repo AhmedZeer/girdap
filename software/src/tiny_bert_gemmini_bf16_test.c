@@ -16,11 +16,7 @@
 #define TINY_BERT_CLASSIFIER_STRIDE \
   ((TINY_BERT_MAX_NUM_CLASSES < DIM) ? DIM : TINY_BERT_MAX_NUM_CLASSES)
 
-#ifdef HAS_NORMALIZATIONS
-#define GEMMINI_TINY_BERT_FLOW "gemmini-transformer-style"
-#else
-#define GEMMINI_TINY_BERT_FLOW "gemmini-matmul-cpu-softmax"
-#endif
+#define GEMMINI_TINY_BERT_FLOW "gemmini-matmul-only"
 
 static uint16_t sw_x[TINY_BERT_MAX_SEQ_LEN][TINY_BERT_MAX_D_MODEL];
 static uint16_t sw_q[TINY_BERT_MAX_SEQ_LEN][TINY_BERT_MAX_D_MODEL];
@@ -366,35 +362,6 @@ static void sw_attention_heads(const tiny_bert_case_t *tc) {
   }
 }
 
-static void softmax_bf16_rows(
-    const elem_t *scores,
-    int score_ld,
-    elem_t *probs,
-    int prob_ld,
-    int rows,
-    int cols) {
-  for (int r = 0; r < rows; r++) {
-    float max_score = -INFINITY;
-    for (int c = 0; c < cols; c++) {
-      const float score = bf16_to_float(scores[r * score_ld + c]);
-      if (score > max_score) {
-        max_score = score;
-      }
-    }
-
-    double denom = 0.0;
-    for (int c = 0; c < cols; c++) {
-      const double e = exp((double)(bf16_to_float(scores[r * score_ld + c]) - max_score));
-      sw_probs[r][c] = (float)e;
-      denom += e;
-    }
-
-    for (int c = 0; c < cols; c++) {
-      probs[r * prob_ld + c] = float_to_bf16((float)((double)sw_probs[r][c] / denom));
-    }
-  }
-}
-
 static void sw_tiny_bert_forward(const tiny_bert_case_t *tc) {
   embeddings_bf16(tc, sw_x);
   for (int layer = 0; layer < tc->n_layers; layer++) {
@@ -499,101 +466,61 @@ static int gemmini_matmul_bias_bf16(
   return 0;
 }
 
-static int gemmini_attention_heads(const tiny_bert_case_t *tc, tiny_bert_hw_stats_t *stats) {
-  if (!mask_all_valid(tc)) {
-    return TINY_BERT_ERR_MASK_UNSUPPORTED;
-  }
-
+static int cpu_attention_heads_from_gemmini_qkv(
+    const tiny_bert_case_t *tc,
+    tiny_bert_hw_stats_t *stats) {
   const uint64_t total_start = read_cycles();
-  const scale_t qk_scale = (scale_t)bf16_to_float(tc->scale_bf16);
+  const float scale = bf16_to_float(tc->scale_bf16);
+
   for (int h = 0; h < tc->n_heads; h++) {
     const int base = h * tc->head_dim;
 
     uint64_t stage_start = read_cycles();
-#ifdef HAS_NORMALIZATIONS
-    printf("    gemmini: attn_head=%d qk_softmax_start\n", h);
-#else
-    printf("    gemmini: attn_head=%d qk_matmul_start\n", h);
-#endif
-    gemmini_fence();
-    tiled_matmul_auto(
-        tc->seq_len,
-        tc->seq_len,
-        tc->head_dim,
-        (const elem_t *)&q_proj[0][base],
-        (const elem_t *)&k_proj[0][base],
-        NULL,
-        (elem_t *)&attn_probs[0][0],
-        TINY_BERT_MAX_D_MODEL,
-        TINY_BERT_MAX_D_MODEL,
-        0,
-        TINY_BERT_MAX_SEQ_LEN,
-        qk_scale,
-        MVIN_SCALE_IDENTITY,
-        MVIN_SCALE_IDENTITY,
-#ifdef HAS_NORMALIZATIONS
-        SOFTMAX,
-#else
-        NO_ACTIVATION,
-#endif
-        ACC_SCALE_IDENTITY,
-        0,
-        false,
-        false,
-        true,
-        false,
-        false,
-        0,
-        WS);
-    gemmini_fence();
-    const uint64_t qk_cycles = read_cycles() - stage_start;
-#ifdef HAS_NORMALIZATIONS
-    printf("    gemmini: attn_head=%d qk_softmax_done cycles=%lu\n",
-           h, (unsigned long)qk_cycles);
-#else
-    printf("    gemmini: attn_head=%d qk_matmul_done cycles=%lu\n",
-           h, (unsigned long)qk_cycles);
-    softmax_bf16_rows(&attn_probs[0][0], TINY_BERT_MAX_SEQ_LEN,
-                      &attn_probs[0][0], TINY_BERT_MAX_SEQ_LEN,
-                      tc->seq_len, tc->seq_len);
-#endif
-    stats->attn_score_cycles += qk_cycles;
-    stats->attn_accel_cycles += qk_cycles;
+    for (int qr = 0; qr < tc->seq_len; qr++) {
+      for (int kv = 0; kv < tc->seq_len; kv++) {
+        double dot = 0.0;
+        for (int d = 0; d < tc->head_dim; d++) {
+          dot += (double)bf16_to_float(q_proj[qr][base + d]) *
+                 (double)bf16_to_float(k_proj[kv][base + d]);
+        }
+        sw_scores[qr][kv] = tc->attention_mask[kv] ? (float)(dot * (double)scale) : -10000.0f;
+      }
+    }
+
+    for (int qr = 0; qr < tc->seq_len; qr++) {
+      float max_score = -INFINITY;
+      for (int kv = 0; kv < tc->seq_len; kv++) {
+        if (sw_scores[qr][kv] > max_score) {
+          max_score = sw_scores[qr][kv];
+        }
+      }
+
+      double denom = 0.0;
+      for (int kv = 0; kv < tc->seq_len; kv++) {
+        denom += exp((double)(sw_scores[qr][kv] - max_score));
+      }
+
+      for (int kv = 0; kv < tc->seq_len; kv++) {
+        sw_probs[qr][kv] =
+            (float)(exp((double)(sw_scores[qr][kv] - max_score)) / denom);
+      }
+    }
+    stats->attn_score_cycles += read_cycles() - stage_start;
 
     stage_start = read_cycles();
-    printf("    gemmini: attn_head=%d pv_start\n", h);
-    tiled_matmul_auto(
-        tc->seq_len,
-        tc->head_dim,
-        tc->seq_len,
-        (const elem_t *)&attn_probs[0][0],
-        (const elem_t *)&v_proj[0][base],
-        NULL,
-        (elem_t *)&context[0][base],
-        TINY_BERT_MAX_SEQ_LEN,
-        TINY_BERT_MAX_D_MODEL,
-        0,
-        TINY_BERT_MAX_D_MODEL,
-        MVIN_SCALE_IDENTITY,
-        MVIN_SCALE_IDENTITY,
-        MVIN_SCALE_IDENTITY,
-        NO_ACTIVATION,
-        ACC_SCALE_IDENTITY,
-        0,
-        false,
-        false,
-        false,
-        false,
-        false,
-        0,
-        WS);
-    gemmini_fence();
-    const uint64_t pv_cycles = read_cycles() - stage_start;
-    printf("    gemmini: attn_head=%d pv_done cycles=%lu\n",
-           h, (unsigned long)pv_cycles);
-    stats->attn_value_cycles += pv_cycles;
-    stats->attn_accel_cycles += pv_cycles;
+    for (int qr = 0; qr < tc->seq_len; qr++) {
+      for (int vc = 0; vc < tc->head_dim; vc++) {
+        double acc = 0.0;
+        for (int kv = 0; kv < tc->seq_len; kv++) {
+          acc += (double)sw_probs[qr][kv] *
+                 (double)bf16_to_float(v_proj[kv][base + vc]);
+        }
+        context[qr][base + vc] = float_to_bf16((float)acc);
+      }
+    }
+    stats->attn_value_cycles += read_cycles() - stage_start;
   }
+
   stats->attn_e2e_cycles += read_cycles() - total_start;
   return 0;
 }
@@ -645,9 +572,9 @@ static int gemmini_tiny_bert_forward(const tiny_bert_case_t *tc, tiny_bert_hw_st
     }
 
     if (rc == 0) {
-      printf("    gemmini: layer=%d attention_start\n", layer);
-      rc = gemmini_attention_heads(tc, stats);
-      printf("    gemmini: layer=%d attention_done rc=%d\n", layer, rc);
+      printf("    cpu: layer=%d attention_start\n", layer);
+      rc = cpu_attention_heads_from_gemmini_qkv(tc, stats);
+      printf("    cpu: layer=%d attention_done rc=%d\n", layer, rc);
     }
 
     bf16_bias_to_acc(layer_vec(tc->bo, layer, tc->d_model), bias_d_model, tc->d_model);
@@ -784,22 +711,14 @@ int main(void) {
 
   printf("=== Gemmini Tiny-BERT BF16 Inference Test ===\n");
   printf("mode: gemmini-bf16  flow=%s\n", GEMMINI_TINY_BERT_FLOW);
-#ifndef HAS_NORMALIZATIONS
-  printf("note: HAS_NORMALIZATIONS is not present; Gemmini native SOFTMAX is disabled for this build.\n");
-#endif
+  printf("note: Gemmini accelerates GEMM layers only; attention score/softmax/context runs on CPU.\n");
   printf("gemmini: DIM=%d elem_bits=%d acc_bits=%d custom=%d\n",
          DIM, ELEM_T_EXP_BITS + ELEM_T_SIG_BITS, ACC_T_EXP_BITS + ACC_T_SIG_BITS,
          XCUSTOM_ACC);
-  printf("RUN_INFO_JSON {\"workload\":\"tiny-bert\",\"mode\":\"gemmini-bf16\",\"backend\":\"gemmini-bf16\",\"flow\":\"%s\",\"dim\":%d,\"elem_bits\":%d,\"acc_bits\":%d,\"opcode\":%d,\"has_normalizations\":%d}\n",
+  printf("RUN_INFO_JSON {\"workload\":\"tiny-bert\",\"mode\":\"gemmini-bf16\",\"backend\":\"gemmini-bf16\",\"flow\":\"%s\",\"dim\":%d,\"elem_bits\":%d,\"acc_bits\":%d,\"opcode\":%d,\"gemmini_attention\":0}\n",
          GEMMINI_TINY_BERT_FLOW,
          DIM, ELEM_T_EXP_BITS + ELEM_T_SIG_BITS,
-         ACC_T_EXP_BITS + ACC_T_SIG_BITS, XCUSTOM_ACC,
-#ifdef HAS_NORMALIZATIONS
-         1
-#else
-         0
-#endif
-         );
+         ACC_T_EXP_BITS + ACC_T_SIG_BITS, XCUSTOM_ACC);
 
   int total_mismatches = 0;
   for (int i = 0; i < tiny_bert_case_count; i++) {
