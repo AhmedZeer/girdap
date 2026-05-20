@@ -532,6 +532,7 @@ static int gemmini_gemm_bf16(
     int K,
     acc_scale_t output_scale,
     uint64_t *cycles) {
+  gemmini_fence();
   const uint64_t start = ws_read_cycles();
   tiled_matmul_auto(
       M,
@@ -575,6 +576,7 @@ static int gemmini_gemm_bf16_transpose_b(
     int K,
     acc_scale_t output_scale,
     uint64_t *cycles) {
+  gemmini_fence();
   const uint64_t start = ws_read_cycles();
   tiled_matmul_auto(
       M,
