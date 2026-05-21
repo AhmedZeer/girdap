@@ -1,0 +1,7 @@
+{
+  "name" : "gemmini-bf16-minimal-bare",
+  "workdir" : "../../..",
+  "base" : "bare-base.json",
+  "host-init" : "workloads/c/bare/gemmini-bf16-minimal-host-init.sh",
+  "bin" : "build/gemmini_bf16_minimal.riscv"
+}

@@ -61,6 +61,9 @@ $(BUILD_DIR)/tiny_bert_gemmini_bf16_test.riscv: $(SRC_DIR)/tiny_bert_gemmini_bf1
 $(BUILD_DIR)/gemmini_bf16_gemm_sanity.riscv: $(SRC_DIR)/gemmini_bf16_gemm_sanity.c gemmini/include/gemmini_params.h | $(BUILD_DIR)
 	$(RISCV_CC) $(CFLAGS) $(GEMMINI_CFLAGS) -MMD -MP -MF $(@:.riscv=.d) -o $@ $< -lm
 
+$(BUILD_DIR)/gemmini_bf16_minimal.riscv: $(SRC_DIR)/gemmini_bf16_minimal.c gemmini/include/gemmini_params.h | $(BUILD_DIR)
+	$(RISCV_CC) $(CFLAGS) $(GEMMINI_CFLAGS) -MMD -MP -MF $(@:.riscv=.d) -o $@ $< -lm
+
 $(COMMON_BUILD_DIR)/%.o: $(COMMON_DIR)/%.c | $(COMMON_BUILD_DIR)
 	$(RISCV_CC) $(CFLAGS) -MMD -MP -MF $(@:.o=.d) -c -o $@ $<
 
