@@ -95,7 +95,8 @@ class FpgaSafeOnlineAttention8x8Impl(
   private val outAccum = RegInit(VecInit(Seq.fill(nRows)(VecInit(Seq.fill(nCols)(0.S(accumPrec.W))))))
   private val rowMax = RegInit(VecInit(Seq.fill(nRows)(minScoreFixed)))
   private val rowDenom = RegInit(VecInit(Seq.fill(nRows)(0.U(softBitWidth.W))))
-  private val scoreBanks = Seq.fill(nCols)(SyncReadMem(nRows * scoreTiles, SInt(accumPrec.W)))
+  // VLSI note: use register-backed score banks while firtool rejects this SyncReadMem path; revert after VLSI runs.
+  private val scoreBanks = Reg(Vec(nCols, Vec(nRows * scoreTiles, SInt(accumPrec.W))))
   private val packedStoreWords = Reg(Vec(outputWordCount, UInt(xLen.W)))
 
   private val qBase = RegInit(0.U(xLen.W))
@@ -200,10 +201,7 @@ class FpgaSafeOnlineAttention8x8Impl(
   private val scoreReadAddr = scoreBankAddr(softRowIdx, kvTileBase)
   private val scoreReadData = Wire(Vec(nCols, SInt(accumPrec.W)))
   for (c <- 0 until nCols) {
-    scoreReadData(c) := scoreBanks(c).read(
-      scoreReadAddr,
-      state === s_p2_row_load || state === s_dbg_score_load
-    )
+    scoreReadData(c) := scoreBanks(c)(scoreReadAddr)
   }
 
   private val beatLgSize = beatOffsetBits.U
@@ -839,7 +837,7 @@ class FpgaSafeOnlineAttention8x8Impl(
       for (c <- 0 until nCols) {
         val scoreIdx = kvTileBase + c.U
         when(c.U < activeKvCols && scoreIdx < kvRows) {
-          scoreBanks(c).write(writeAddr, softLatchedScores(c))
+          scoreBanks(c)(writeAddr) := softLatchedScores(c)
         }
       }
       rowMax(softRowIdx) := softGlobalMaxFixed
