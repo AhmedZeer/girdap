@@ -1,3 +1,8 @@
+Matmul8x8AndOnlineAttention8x8BF16MemPackerExpLut512:
+    agfi: agfi-006107176fcab95d8
+    deploy_quintuplet_override: null
+    custom_runtime_config: null
+
 GemminiBF16Default:
     agfi: agfi-0e843ce598ad20d6e
     deploy_quintuplet_override: null
