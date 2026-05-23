@@ -11,10 +11,10 @@ build_farm:
 builds_to_run:
     # this section references builds defined in config_build_recipes.yaml
     # if you add a build here, it will be built when you run buildbitstream
-    - GemminiBF16Default8
+    - AtikX
 
 agfis_to_share:
-    - GemminiBF16Default8
+    - AtikX
 
 share_with_accounts:
     # To share with a specific user:
