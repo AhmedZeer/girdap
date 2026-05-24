@@ -4,14 +4,14 @@
 
 *What makes it so special?* Here 👇
 
-✅ **Attention** mechanism smelted directly into silicon 
-✅ Prototyped end-to-end on **FPGA** (AWS F2) 
-✅ Benchmarked against **PyTorch**-based workloads 
-✅ Built on the **RocketChip** architecture (RISC-V) 
-✅ Native **BF16** support 
-✅ Up to **100×** speedup on vanilla attention 
-✅ Up to **80×** speedup on TinyBERT 
-✅ Up to **30×** speedup on GPT-2 prefill 
+✅ **Attention** mechanism smelted directly into silicon  
+✅ Prototyped end-to-end on **FPGA** (AWS F2)  
+✅ Benchmarked against **PyTorch**-based workloads  
+✅ Built on the **RocketChip** architecture (RISC-V)  
+✅ Native **BF16** support  
+✅ Up to **100×** speedup on vanilla attention  
+✅ Up to **80×** speedup on TinyBERT  
+✅ Up to **30×** speedup on GPT-2 prefill  
 
 - Don't believe benchmark results? Click to watch the playlist
 - Want to simulate it locally? Check out this video.
