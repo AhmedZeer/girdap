@@ -1,22 +1,22 @@
 # Atik Chisel Source Map
 
-This directory contains the first modular Chisel implementation of Atik. The layout follows the manifest: ABI and parameters at the root package, RoCC at the boundary, control for operation sequencing, memory for DMA/SRAM/packing, compute for the shared fixed-point mesh, attention for online attention helpers, and top for wiring.
+This directory contains the modular Chisel implementation of Atik. The hardware is organized around a small RoCC-facing ABI, a shared fixed-point mesh, reusable DMA helpers, SRAM-backed tile buffers, and two operation controllers: matmul and online attention.
 
 ## Root Package
 
 - `main/scala/atik/AtikParams.scala`
-  Defines the hardware parameter set: mesh size, BF16 width, fixed-point widths, accumulator width, LUT sizes, address width, memory beat width, descriptor size, and counter count. This is the main knob for 2x2, 4x4, and 8x8 builds.
+  Defines mesh size, BF16 width, fixed-point widths, accumulator width, softmax/LUT widths, address width, memory beat width, descriptor size, counter count, and internal `matmulKt`. This is the main knob for 2x2, 4x4, and 8x8 builds. `matmulKt` is also used as the attention `d_k` chunk depth.
 
 - `main/scala/atik/AtikOpcodes.scala`
   Defines software-visible RoCC function codes, operation IDs, status/error codes, and counter indices. These mirror the ABI headers in `software/include`.
 
 - `main/scala/atik/AtikTypes.scala`
-  Defines shared Chisel bundles: the software descriptor layout, host command/response records, status state, counter events, and generic DMA beat command/response records.
+  Defines shared Chisel bundles: the software descriptor layout, host command/response records, status state, counter events, and generic DMA beat request/response records.
 
 ## RoCC Boundary
 
 - `main/scala/atik/rocc/AtikCommandRouter.scala`
-  Decodes RoCC commands into one-cycle core control pulses and formats RoCC responses for status and counter reads.
+  Decodes RoCC commands into core control pulses and formats RoCC responses for status and counter reads.
 
 - `main/scala/atik/rocc/AtikRoCC.scala`
   Provides the LazyRoCC wrapper, TileLink client node, TileLink beat adapter for DMA requests, and config fragments for 2x2, 4x4, and 8x8 Atik instances.
@@ -24,7 +24,7 @@ This directory contains the first modular Chisel implementation of Atik. The lay
 ## Top-Level Wiring
 
 - `main/scala/atik/top/AtikCore.scala`
-  Connects command control, descriptor DMA, matmul read/write memory ports, attention controller placeholder, counters, and status packing. It arbitrates descriptor reads against matmul reads on the single TileLink beat path.
+  Connects command control, descriptor DMA, matmul and attention controllers, shared MAC mesh, counters, status packing, and DMA arbitration. Matmul and attention do not run concurrently, so the shared mesh is selected by the active controller.
 
 - `main/scala/atik/top/AtikTop.scala`
   Thin wrapper around `AtikCore`; intended as the stable top module for RTL emission and VLSI flows.
@@ -38,13 +38,13 @@ This directory contains the first modular Chisel implementation of Atik. The lay
   Reads the 80-byte software descriptor through the DMA reader and parses it for 64-bit or 128-bit memory beats.
 
 - `main/scala/atik/control/MatmulController.scala`
-  First real matmul datapath controller. It validates descriptors, walks M/N/K tiles, fetches BF16 A/B elements through DMA beats, converts them to fixed-point, feeds the parameterized MAC mesh, accumulates fixed-point tile results, converts outputs back to BF16, and writes results with byte masks.
+  Matmul tile scheduler. It walks M/N tiles, chunks K by internal `matmulKt`, loads A/B chunks through `TileDmaReader`, stores them in SRAM-backed tile buffers, reads one K lane per mesh step, accumulates on the shared mesh, converts the result tile to BF16, and writes it through `TileDmaWriter`.
 
 - `main/scala/atik/control/AttentionController.scala`
-  Coarse attention scheduler. It validates attention descriptors and emits activity/counter events for QK, online softmax, and PV work.
+  Online attention tile scheduler. It walks query, value-column, and key/value tiles. Q/K are loaded in `KT` chunks through `TileDmaReader` into SRAM-backed tile buffers, QK scores accumulate on the shared mesh, causal masking and online softmax state are updated locally, V tiles are read through `TileDmaReader`, PV accumulation uses the shared mesh, normalized output is converted to BF16, and the O tile is written through `TileDmaWriter`.
 
 - `main/scala/atik/control/CounterBank.scala`
-  Implements the ABI-visible performance counters: total, compute, DMA read/write, mesh active/idle, bytes read, and bytes written.
+  Implements ABI-visible performance counters: total cycles, compute cycles, DMA read/write cycles, mesh active/idle cycles, bytes read/written, softmax cycles, tile load/compute events, DMA stalls, and SRAM stalls.
 
 - `main/scala/atik/control/StatusRegs.scala`
   Packs busy/done/error into the ABI status word.
@@ -52,28 +52,31 @@ This directory contains the first modular Chisel implementation of Atik. The lay
 ## Memory
 
 - `main/scala/atik/memory/DmaReader.scala`
-  Small beat-based DMA read engine. It accepts a base address and beat count, issues memory read beats, and streams returned data.
+  Small beat-count DMA reader used by descriptor-style transfers. It issues memory read beats and streams returned data.
 
 - `main/scala/atik/memory/DmaWriter.scala`
-  Small beat-based DMA write engine for future bulk writeback paths. The first matmul path currently drives write beats directly from `MatmulController` for partial-BF16 byte masking.
+  Small beat-count DMA writer kept as a simple bulk-write primitive. Current matmul and attention tile writeback use `TileDmaWriter`.
+
+- `main/scala/atik/memory/TileDma.scala`
+  Contains reusable row-major tile DMA engines. `TileDmaReader` reads BF16 tensor regions, caches returned memory beats, and emits BF16 elements in row-major order. `TileDmaWriter` packs BF16 output tiles into aligned memory beats with byte masks.
 
 - `main/scala/atik/memory/DmaRequestArbiter.scala`
   Round-robin arbiter for multiple DMA read command producers.
 
 - `main/scala/atik/memory/SramBank.scala`
-  Synthesizable `SyncReadMem` bank wrapper. This is the macro replacement point for VLSI SRAM mapping.
+  Synthesizable `SyncReadMem` bank wrapper. This is the macro replacement point for VLSI SRAM mapping and the inference target for FPGA BRAM/LUTRAM.
 
 - `main/scala/atik/memory/TileSram.scala`
-  Tile-buffer wrapper around `SramBank`; intended for A/B/V/O/accumulator tile storage.
+  Tile-buffer wrapper around `SramBank`. Matmul uses it for A/B `KT` chunks; attention uses it for Q/K `KT` chunks.
 
 - `main/scala/atik/memory/SramLayout.scala`
   Names local SRAM regions used by the datapath.
 
 - `main/scala/atik/memory/InputPacker.scala`
-  Converts row-major BF16 memory beats into lane vectors for the mesh-side datapath.
+  Legacy/simple BF16 input packing helper for mesh-side lane vectors. The current tiled controllers primarily use `TileDmaReader` plus tile SRAMs.
 
 - `main/scala/atik/memory/OutputPacker.scala`
-  Packs BF16 lane vectors into writeback words.
+  Legacy/simple BF16 output packing helper. The current tiled controllers primarily use `TileDmaWriter`.
 
 ## Compute
 
@@ -87,12 +90,12 @@ This directory contains the first modular Chisel implementation of Atik. The lay
   One signed fixed-point multiply-accumulate cell.
 
 - `main/scala/atik/compute/MacMesh.scala`
-  Parameterized square mesh of MAC cells for 2x2, 4x4, or 8x8 builds.
+  Parameterized square mesh of MAC cells for 2x2, 4x4, or 8x8 builds. It is shared by matmul QK/PV attention paths.
 
 - `main/scala/atik/compute/AccumulatorTile.scala`
-  Register-backed accumulator tile used around the mesh.
+  Register-backed accumulator tile helper. Current tiled controllers keep their operation-specific accumulator state locally.
 
-## Attention
+## Attention Helpers
 
 - `main/scala/atik/attention/CausalMask.scala`
   Applies causal masking by invalidating scores where `k_index > q_index`.
@@ -107,10 +110,10 @@ This directory contains the first modular Chisel implementation of Atik. The lay
   Lookup-table reciprocal approximation for softmax normalization.
 
 - `main/scala/atik/attention/OnlineSoftmax.scala`
-  Online softmax row update: running max, denominator update, and current score exponent.
+  Online softmax row update helper: running max, denominator update, and current score exponent.
 
 - `main/scala/atik/attention/ProbVAccumulator.scala`
-  Fixed-point accumulation for `probability * V`.
+  Fixed-point accumulation helper for `probability * V`. The current controller maps PV accumulation onto the shared mesh.
 
 - `main/scala/atik/attention/AttentionNormalize.scala`
   Applies a reciprocal denominator to an accumulated attention output.
@@ -118,4 +121,4 @@ This directory contains the first modular Chisel implementation of Atik. The lay
 ## Utility
 
 - `main/scala/atik/util/FixedPointUtil.scala`
-  Small helpers for fixed-point narrowing and product shifting.
+  Small helpers for fixed-point resizing, narrowing, and unsigned resizing.

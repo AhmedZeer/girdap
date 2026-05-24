@@ -37,4 +37,9 @@ object AtikCounters {
   val meshIdleCycles = 5
   val bytesRead = 6
   val bytesWritten = 7
+  val softmaxCycles = 8
+  val tilesLoaded = 9
+  val tilesComputed = 10
+  val dmaStallCycles = 11
+  val sramStallCycles = 12
 }

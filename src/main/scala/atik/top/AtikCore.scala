@@ -2,6 +2,7 @@ package atik.top
 
 import atik._
 import atik.control._
+import atik.compute._
 import atik.memory._
 import chisel3._
 import chisel3.util._
@@ -34,6 +35,7 @@ class AtikCore(params: AtikParams) extends Module {
   private val controller = Module(new AtikController(params))
   private val matmul = Module(new MatmulController(params))
   private val attention = Module(new AttentionController(params))
+  private val sharedMesh = Module(new MacMesh(params))
   private val counters = Module(new CounterBank(params))
   private val statusRegs = Module(new StatusRegs(params))
 
@@ -116,6 +118,13 @@ class AtikCore(params: AtikParams) extends Module {
 
   matmul.io.start := controller.io.matmulStart
   matmul.io.desc := controller.io.activeDesc
+
+  private val matmulUsesMesh = matmul.io.meshActive
+  sharedMesh.io.a := Mux(matmulUsesMesh, matmul.io.meshA, attention.io.meshA)
+  sharedMesh.io.b := Mux(matmulUsesMesh, matmul.io.meshB, attention.io.meshB)
+  sharedMesh.io.accIn := Mux(matmulUsesMesh, matmul.io.meshAccIn, attention.io.meshAccIn)
+  matmul.io.meshOut := sharedMesh.io.out
+  attention.io.meshOut := sharedMesh.io.out
 
   attention.io.start := controller.io.attentionStart
   attention.io.desc := controller.io.activeDesc

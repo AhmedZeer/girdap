@@ -25,8 +25,13 @@ class CounterBank(params: AtikParams) extends Module {
     when(io.events.dmaWriteActive) { counters(AtikCounters.dmaWriteCycles) := counters(AtikCounters.dmaWriteCycles) + 1.U }
     when(io.events.meshActive) { counters(AtikCounters.meshActiveCycles) := counters(AtikCounters.meshActiveCycles) + 1.U }
     when(io.events.meshIdle) { counters(AtikCounters.meshIdleCycles) := counters(AtikCounters.meshIdleCycles) + 1.U }
+    when(io.events.softmaxActive) { counters(AtikCounters.softmaxCycles) := counters(AtikCounters.softmaxCycles) + 1.U }
+    when(io.events.dmaStall) { counters(AtikCounters.dmaStallCycles) := counters(AtikCounters.dmaStallCycles) + 1.U }
+    when(io.events.sramStall) { counters(AtikCounters.sramStallCycles) := counters(AtikCounters.sramStallCycles) + 1.U }
     counters(AtikCounters.bytesRead) := counters(AtikCounters.bytesRead) + io.events.bytesRead
     counters(AtikCounters.bytesWritten) := counters(AtikCounters.bytesWritten) + io.events.bytesWritten
+    counters(AtikCounters.tilesLoaded) := counters(AtikCounters.tilesLoaded) + io.events.tilesLoaded
+    counters(AtikCounters.tilesComputed) := counters(AtikCounters.tilesComputed) + io.events.tilesComputed
   }
 
   io.readData := Mux(

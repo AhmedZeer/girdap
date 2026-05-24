@@ -107,6 +107,8 @@ static int run_matmul_smoke(void) {
       {"atik_matmul", atik_read_counter(ATIK_COUNTER_TOTAL_CYCLES)},
       {"bytes_read", atik_read_counter(ATIK_COUNTER_BYTES_READ)},
       {"bytes_written", atik_read_counter(ATIK_COUNTER_BYTES_WRITTEN)},
+      {"tiles_loaded", atik_read_counter(ATIK_COUNTER_TILES_LOADED)},
+      {"tiles_computed", atik_read_counter(ATIK_COUNTER_TILES_COMPUTED)},
   };
   const atik_log_result_t result = {
       .workload = "atik-smoke",
@@ -121,7 +123,7 @@ static int run_matmul_smoke(void) {
       .cpu_cycles = ref_cycles,
       .hw_cycles = atik_read_counter(ATIK_COUNTER_TOTAL_CYCLES),
       .stages = stages,
-      .stage_count = 4,
+      .stage_count = 6,
       .hw_max_abs_diff_x100000 = max_diff * 10,
       .cpu_ref_max_abs_diff_x100000 = 0,
   };
@@ -167,6 +169,9 @@ static int run_attention_smoke(void) {
       {"atik_attention", atik_read_counter(ATIK_COUNTER_TOTAL_CYCLES)},
       {"bytes_read", atik_read_counter(ATIK_COUNTER_BYTES_READ)},
       {"bytes_written", atik_read_counter(ATIK_COUNTER_BYTES_WRITTEN)},
+      {"softmax", atik_read_counter(ATIK_COUNTER_SOFTMAX_CYCLES)},
+      {"tiles_loaded", atik_read_counter(ATIK_COUNTER_TILES_LOADED)},
+      {"tiles_computed", atik_read_counter(ATIK_COUNTER_TILES_COMPUTED)},
   };
   const atik_log_result_t result = {
       .workload = "atik-smoke",
@@ -181,7 +186,7 @@ static int run_attention_smoke(void) {
       .cpu_cycles = ref_cycles,
       .hw_cycles = atik_read_counter(ATIK_COUNTER_TOTAL_CYCLES),
       .stages = stages,
-      .stage_count = 4,
+      .stage_count = 7,
       .hw_max_abs_diff_x100000 = max_diff * 10,
       .cpu_ref_max_abs_diff_x100000 = 0,
   };

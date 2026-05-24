@@ -18,6 +18,12 @@ class MatmulController(params: AtikParams) extends Module {
     val memWriteMask = Output(UInt((params.memDataBits / 8).W))
     val memWriteResp = Flipped(Decoupled(new DmaWriteResponse))
 
+    val meshA = Output(Vec(params.meshRows, SInt(params.fixedBits.W)))
+    val meshB = Output(Vec(params.meshCols, SInt(params.fixedBits.W)))
+    val meshAccIn = Output(Vec(params.meshRows, Vec(params.meshCols, SInt(params.accumBits.W))))
+    val meshOut = Input(Vec(params.meshRows, Vec(params.meshCols, SInt(params.accumBits.W))))
+    val meshActive = Output(Bool())
+
     val busy = Output(Bool())
     val done = Output(Bool())
     val error = Output(UInt(8.W))
@@ -127,14 +133,18 @@ class MatmulController(params: AtikParams) extends Module {
     bConverters(c).io.in := Mux(activeN(c), bRaw(c), 0.U)
   }
 
-  private val mesh = Module(new MacMesh(params))
   for (r <- 0 until params.meshRows) {
-    mesh.io.a(r) := aConverters(r).io.out
+    io.meshA(r) := aConverters(r).io.out
+  }
+  for (c <- 0 until params.meshCols) {
+    io.meshB(c) := bConverters(c).io.out
+  }
+  for (r <- 0 until params.meshRows) {
     for (c <- 0 until params.meshCols) {
-      mesh.io.b(c) := bConverters(c).io.out
-      mesh.io.accIn(r)(c) := Mux(activeM(r) && activeN(c), accum(r)(c), 0.S)
+      io.meshAccIn(r)(c) := Mux(activeM(r) && activeN(c), accum(r)(c), 0.S)
     }
   }
+  io.meshActive := state === sCompute
 
   private val outConverters = Seq.fill(params.meshRows, params.meshCols)(Module(new FixedToBf16(params, params.accumBits, params.accumFracBits)))
   for (r <- 0 until params.meshRows) {
@@ -156,10 +166,16 @@ class MatmulController(params: AtikParams) extends Module {
   event.computeActive := state === sCompute
   event.meshActive := state === sCompute
   event.meshIdle := event.totalActive && state =/= sCompute
+  event.softmaxActive := false.B
   event.dmaReadActive := tileReader.io.active
   event.dmaWriteActive := tileWriter.io.active
+  event.dmaStall := (tileReader.io.memReq.valid && !tileReader.io.memReq.ready) ||
+    (tileWriter.io.memReq.valid && !tileWriter.io.memReq.ready)
+  event.sramStall := state === sReadSram
   event.bytesRead := tileReader.io.bytesRead
   event.bytesWritten := tileWriter.io.bytesWritten
+  event.tilesLoaded := Mux(tileReader.io.out.fire && tileReader.io.out.bits.last, 1.U(params.xLen.W), 0.U(params.xLen.W))
+  event.tilesComputed := Mux(state === sCompute, 1.U(params.xLen.W), 0.U(params.xLen.W))
 
   when(io.start && state === sIdle) {
     descReg := io.desc
@@ -240,7 +256,7 @@ class MatmulController(params: AtikParams) extends Module {
     is(sCompute) {
       for (r <- 0 until params.meshRows) {
         for (c <- 0 until params.meshCols) {
-          accum(r)(c) := mesh.io.out(r)(c)
+          accum(r)(c) := io.meshOut(r)(c)
         }
       }
       state := sNextChunkK

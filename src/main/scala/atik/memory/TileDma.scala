@@ -65,6 +65,10 @@ class TileDmaReader(params: AtikParams) extends Module {
   }
 
   private val lastElem = row + 1.U === rows && col + 1.U === cols
+  private val nextRow = Mux(col + 1.U === cols, row + 1.U, row)
+  private val nextCol = Mux(col + 1.U === cols, 0.U, col + 1.U)
+  private val nextElemAddr = elemAddr(nextRow, nextCol)
+  private val nextElemInCachedBeat = alignedBeat(nextElemAddr) === alignedBeat(readElemAddr)
 
   io.cmd.ready := state === sIdle
   io.memReq.valid := state === sReq
@@ -104,12 +108,14 @@ class TileDmaReader(params: AtikParams) extends Module {
   when(io.out.fire) {
     when(lastElem) {
       state := sIdle
-    }.elsewhen(col + 1.U === cols) {
-      row := row + 1.U
-      col := 0.U
-      state := sReq
+    }.elsewhen(nextElemInCachedBeat) {
+      row := nextRow
+      col := nextCol
+      readElemAddr := nextElemAddr
+      state := sOut
     }.otherwise {
-      col := col + 1.U
+      row := nextRow
+      col := nextCol
       state := sReq
     }
   }

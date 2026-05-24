@@ -239,6 +239,9 @@ static uint64_t run_attention_case(int case_index, const attention_operator_case
       {"dma_write", atik_read_counter(ATIK_COUNTER_DMA_WRITE_CYCLES)},
       {"bytes_read", atik_read_counter(ATIK_COUNTER_BYTES_READ)},
       {"bytes_written", atik_read_counter(ATIK_COUNTER_BYTES_WRITTEN)},
+      {"softmax", atik_read_counter(ATIK_COUNTER_SOFTMAX_CYCLES)},
+      {"tiles_loaded", atik_read_counter(ATIK_COUNTER_TILES_LOADED)},
+      {"tiles_computed", atik_read_counter(ATIK_COUNTER_TILES_COMPUTED)},
   };
   const char *status = (hw_rc == ATIK_OK && mismatches == 0) ? "PASS" : "FAIL";
   const atik_log_result_t result = {

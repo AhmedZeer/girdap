@@ -17,6 +17,13 @@ matmul_binding:
   B_tile_sram_lanes: NC
   note: KT is an internal hardware configuration parameter and is not part of the ABI.
 
+attention_binding:
+  Q_tile_sram_depth: KT
+  Q_tile_sram_lanes: MR
+  K_tile_sram_depth: KT
+  K_tile_sram_lanes: KC
+  note: Attention uses the same internal KT hardware parameter for d_k chunks.
+
 storage:
   mem:
     type: SRAM<DEPTH,Vec<LANES,BF16>>

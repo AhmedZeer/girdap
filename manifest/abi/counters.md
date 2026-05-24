@@ -46,9 +46,9 @@ sram_stall_cycles
   Cycles blocked by local SRAM access conflicts.
 ```
 
-## First Implementation Minimum
+## Implemented Counter Set
 
-The minimum useful set is:
+The first eight counter indices are stable and preserve the original minimum set:
 
 ```text
 total_cycles
@@ -59,6 +59,16 @@ mesh_active_cycles
 mesh_idle_cycles
 bytes_read
 bytes_written
+```
+
+Additional manifest counters are appended after the original set:
+
+```text
+softmax_cycles
+tiles_loaded
+tiles_computed
+dma_stall_cycles
+sram_stall_cycles
 ```
 
 These answer the most important early questions:

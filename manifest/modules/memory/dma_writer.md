@@ -30,3 +30,16 @@ behavior: |
 
   done = true after all valid output elements are written.
 ```
+
+
+## Current Bindings
+
+```yaml
+matmul:
+  writes: C tile
+  layout: row-major BF16
+
+attention:
+  writes: O tile
+  layout: row-major BF16
+```

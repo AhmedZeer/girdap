@@ -58,8 +58,13 @@ class AtikCounterEvent(params: AtikParams) extends Bundle {
   val dmaWriteActive = Bool()
   val meshActive = Bool()
   val meshIdle = Bool()
+  val softmaxActive = Bool()
+  val dmaStall = Bool()
+  val sramStall = Bool()
   val bytesRead = UInt(params.xLen.W)
   val bytesWritten = UInt(params.xLen.W)
+  val tilesLoaded = UInt(params.xLen.W)
+  val tilesComputed = UInt(params.xLen.W)
 }
 
 class DmaReadCommand(params: AtikParams) extends Bundle {

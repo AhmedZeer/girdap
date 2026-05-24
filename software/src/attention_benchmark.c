@@ -456,6 +456,10 @@ static uint64_t run_case(int case_index, const atik_attention_case_t *test_case)
       {"dma_write", atik_read_counter(ATIK_COUNTER_DMA_WRITE_CYCLES)},
       {"bytes_read", atik_read_counter(ATIK_COUNTER_BYTES_READ)},
       {"bytes_written", atik_read_counter(ATIK_COUNTER_BYTES_WRITTEN)},
+      {"softmax", atik_read_counter(ATIK_COUNTER_SOFTMAX_CYCLES)},
+      {"tiles_loaded", atik_read_counter(ATIK_COUNTER_TILES_LOADED)},
+      {"tiles_computed", atik_read_counter(ATIK_COUNTER_TILES_COMPUTED)},
+      {"dma_stall", atik_read_counter(ATIK_COUNTER_DMA_STALL_CYCLES)},
   };
   const atik_log_result_t result = {
       .workload = "attention-benchmark",
