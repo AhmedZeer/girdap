@@ -10,7 +10,7 @@ purpose:
 parameters:
   MR: mesh rows
   NC: mesh cols
-  KT: K chunk depth
+  KT: internal K chunk depth; hardware configuration only, not software ABI
 
 inputs:
   desc:
@@ -53,6 +53,7 @@ state:
     type: U32
   k0:
     type: U32
+    meaning: base K index of the active KT chunk
 
 behavior: |
   for m0 in 0 .. M step MR:
@@ -60,6 +61,7 @@ behavior: |
       clear_accumulator = true
 
       for k0 in 0 .. K step KT:
+        active_KT = min(KT, K - k0)
         issue A read request
         wait for A load done
 

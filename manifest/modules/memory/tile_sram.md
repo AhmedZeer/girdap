@@ -10,6 +10,13 @@ parameters:
   DEPTH: number of vectors
   LANES: number of BF16 lanes per vector
 
+matmul_binding:
+  A_tile_sram_depth: KT
+  A_tile_sram_lanes: MR
+  B_tile_sram_depth: KT
+  B_tile_sram_lanes: NC
+  note: KT is an internal hardware configuration parameter and is not part of the ABI.
+
 storage:
   mem:
     type: SRAM<DEPTH,Vec<LANES,BF16>>

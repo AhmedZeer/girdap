@@ -55,7 +55,8 @@ mesh-friendly vectors.
 
 Large local storage should be implemented as SRAM-backed buffers. Small live
 state, such as the active accumulator tile, row max, and row denominator, may
-be registers.
+be registers. Local K chunk depth `KT` is hardware-configurable and may differ
+from mesh size; it is not exposed through the software ABI.
 
 ## DMA Principle
 

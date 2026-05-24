@@ -18,11 +18,13 @@ case class AtikParams(
   xLen: Int = 64,
   memDataBits: Int = 128,
   dmaBeatsBits: Int = 16,
-  counterCount: Int = 8
+  counterCount: Int = 8,
+  matmulKt: Int = 16
 ) {
   require(meshRows > 0 && meshCols > 0, "Atik mesh dimensions must be positive")
   require(Set(2, 4, 8).contains(meshRows), "Atik supports 2x2, 4x4, and 8x8 meshes")
   require(meshRows == meshCols, "Atik currently assumes square meshes")
+  require(matmulKt >= meshCols, "matmul KT should be at least the mesh column count")
   require(elemBits == 16, "Atik external tensor elements are BF16")
   require(fixedBits > fixedFracBits, "fixed-point format needs integer bits")
   require(accumBits >= fixedBits * 2, "accumulator should hold fixed-point products")

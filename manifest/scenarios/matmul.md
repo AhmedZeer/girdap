@@ -40,6 +40,10 @@ Output:
 
 ## Schedule
 
+`KT` is an internal hardware configuration parameter. It is not visible in
+the software ABI. The descriptor `K` may be larger than `KT`; hardware keeps
+the accumulator live across all K chunks for an output tile.
+
 ```text
 for each output tile C[m0 : m0+MR, n0 : n0+NC]:
 
@@ -86,4 +90,6 @@ invalid C lanes are not written
 
 There is no architectural `maxK` for the full problem. The full descriptor `K`
 may be larger than local storage. Hardware repeatedly loads K chunks of depth
-`KT` and keeps the accumulator live until all chunks are complete.
+`KT` and keeps the accumulator live until all chunks are complete. `KT` may be
+larger than the mesh dimension when SRAM capacity allows it, but changing it is
+a hardware configuration choice, not an ABI change.

@@ -24,27 +24,22 @@ class MatmulController(params: AtikParams) extends Module {
     val events = Output(new AtikCounterEvent(params))
   })
 
-  private val beatOffsetBits = log2Ceil(params.beatBytes)
   private val elemOffsetBits = log2Ceil(params.bytesPerElem)
-  private val elemLaneBits = math.max(1, log2Ceil(params.elemsPerBeat))
   private val rowIdxBits = math.max(1, log2Ceil(params.meshRows))
   private val colIdxBits = math.max(1, log2Ceil(params.meshCols))
+  private val ktIdxBits = math.max(1, log2Ceil(params.matmulKt))
 
-  private val (sIdle :: sInitTile :: sReqA :: sWaitA :: sReqB :: sWaitB ::
-    sCompute :: sNextK :: sWriteReq :: sWriteWait :: sNextOut :: sNextTile :: sDone :: sError :: Nil) = Enum(14)
+  private val (sIdle :: sInitTile :: sStartA :: sLoadA :: sStartB :: sLoadB ::
+    sReadSram :: sLatchSram :: sCompute :: sNextChunkK :: sNextKChunk ::
+    sStartWrite :: sWaitWrite :: sNextTile :: sDone :: sError :: Nil) = Enum(16)
   private val state = RegInit(sIdle)
 
   private val descReg = RegInit(0.U.asTypeOf(new AtikDescriptor(params)))
   private val errorReg = RegInit(AtikStatus.ok)
   private val tileM = RegInit(0.U(32.W))
   private val tileN = RegInit(0.U(32.W))
-  private val kIdx = RegInit(0.U(32.W))
-  private val loadAIdx = RegInit(0.U(rowIdxBits.W))
-  private val loadBIdx = RegInit(0.U(colIdxBits.W))
-  private val outRow = RegInit(0.U(rowIdxBits.W))
-  private val outCol = RegInit(0.U(colIdxBits.W))
-  private val readElemAddr = RegInit(0.U(params.addrBits.W))
-  private val writeElemAddr = Wire(UInt(params.addrBits.W))
+  private val kBase = RegInit(0.U(32.W))
+  private val chunkK = RegInit(0.U(ktIdxBits.W))
 
   private val aRaw = RegInit(VecInit(Seq.fill(params.meshRows)(0.U(params.elemBits.W))))
   private val bRaw = RegInit(VecInit(Seq.fill(params.meshCols)(0.U(params.elemBits.W))))
@@ -52,22 +47,75 @@ class MatmulController(params: AtikParams) extends Module {
     VecInit(Seq.fill(params.meshCols)(0.S(params.accumBits.W)))
   }))
 
+  private val aSrams = Seq.fill(params.meshRows)(Module(new TileSram(params, params.matmulKt, params.elemBits)))
+  private val bSrams = Seq.fill(params.meshCols)(Module(new TileSram(params, params.matmulKt, params.elemBits)))
+
   private def activeM(row: Int): Bool = tileM + row.U < descReg.m
   private def activeN(col: Int): Bool = tileN + col.U < descReg.n
-  private def alignedBeat(addr: UInt): UInt = addr & (~((params.beatBytes - 1).U(params.addrBits.W))).asUInt
-  private def elemLane(addr: UInt): UInt = addr(beatOffsetBits - 1, elemOffsetBits)
-  private def elemFromBeat(data: UInt, lane: UInt): UInt = {
-    val elems = Wire(Vec(params.elemsPerBeat, UInt(params.elemBits.W)))
-    for (i <- 0 until params.elemsPerBeat) {
-      elems(i) := data((i + 1) * params.elemBits - 1, i * params.elemBits)
-    }
-    elems(lane(elemLaneBits - 1, 0))
+  private def elemOffset(index: UInt): UInt = (index << elemOffsetBits).pad(params.addrBits)
+
+  private val remainingM = descReg.m - tileM
+  private val remainingN = descReg.n - tileN
+  private val remainingK = descReg.k - kBase
+  private val activeRows = Mux(remainingM > params.meshRows.U, params.meshRows.U(32.W), remainingM)
+  private val activeCols = Mux(remainingN > params.meshCols.U, params.meshCols.U(32.W), remainingN)
+  private val activeK = Mux(remainingK > params.matmulKt.U, params.matmulKt.U(32.W), remainingK)
+
+  private val aTileBase = descReg.aAddr + elemOffset(tileM * descReg.lda + kBase)
+  private val bTileBase = descReg.bAddr + elemOffset(kBase * descReg.ldb + tileN)
+  private val outTileBase = descReg.outAddr + elemOffset(tileM * descReg.ldout + tileN)
+
+  private val tileReader = Module(new TileDmaReader(params))
+  private val tileWriter = Module(new TileDmaWriter(params, params.meshRows, params.meshCols))
+
+  private val readCmd = Wire(new TileDmaReadCommand(params))
+  readCmd.base := Mux(state === sStartA, aTileBase, bTileBase)
+  readCmd.rows := Mux(state === sStartA, activeRows, activeK)
+  readCmd.cols := Mux(state === sStartA, activeK, activeCols)
+  readCmd.stride := Mux(state === sStartA, descReg.lda, descReg.ldb)
+
+  tileReader.io.cmd.valid := state === sStartA || state === sStartB
+  tileReader.io.cmd.bits := readCmd
+  tileReader.io.out.ready := state === sLoadA || state === sLoadB
+
+  io.memReadReq.valid := tileReader.io.memReq.valid
+  io.memReadReq.bits := tileReader.io.memReq.bits
+  tileReader.io.memReq.ready := io.memReadReq.ready
+  tileReader.io.memResp.valid := io.memReadResp.valid
+  tileReader.io.memResp.bits := io.memReadResp.bits
+  io.memReadResp.ready := tileReader.io.memResp.ready
+
+  private val writeCmd = Wire(new TileDmaWriteCommand(params))
+  writeCmd.base := outTileBase
+  writeCmd.rows := activeRows
+  writeCmd.cols := activeCols
+  writeCmd.stride := descReg.ldout
+
+  private val outBf16 = Wire(Vec(params.meshRows, Vec(params.meshCols, UInt(params.elemBits.W))))
+  tileWriter.io.cmd.valid := state === sStartWrite
+  tileWriter.io.cmd.bits := writeCmd
+  tileWriter.io.tile := outBf16
+
+  io.memWriteReq.valid := tileWriter.io.memReq.valid
+  io.memWriteReq.bits := tileWriter.io.memReq.bits
+  tileWriter.io.memReq.ready := io.memWriteReq.ready
+  io.memWriteData := tileWriter.io.memData
+  io.memWriteMask := tileWriter.io.memMask
+  tileWriter.io.memResp.valid := io.memWriteResp.valid
+  tileWriter.io.memResp.bits := io.memWriteResp.bits
+  io.memWriteResp.ready := tileWriter.io.memResp.ready
+
+  for (r <- 0 until params.meshRows) {
+    aSrams(r).io.wen := state === sLoadA && tileReader.io.out.fire && tileReader.io.out.bits.row === r.U
+    aSrams(r).io.waddr := tileReader.io.out.bits.col(ktIdxBits - 1, 0)
+    aSrams(r).io.wdata := tileReader.io.out.bits.data
+    aSrams(r).io.raddr := chunkK
   }
-  private def aElemAddr(row: UInt): UInt = {
-    descReg.aAddr + (((tileM + row) * descReg.lda + kIdx) << elemOffsetBits)(params.addrBits - 1, 0)
-  }
-  private def bElemAddr(col: UInt): UInt = {
-    descReg.bAddr + ((kIdx * descReg.ldb + tileN + col) << elemOffsetBits)(params.addrBits - 1, 0)
+  for (c <- 0 until params.meshCols) {
+    bSrams(c).io.wen := state === sLoadB && tileReader.io.out.fire && tileReader.io.out.bits.col === c.U
+    bSrams(c).io.waddr := tileReader.io.out.bits.row(ktIdxBits - 1, 0)
+    bSrams(c).io.wdata := tileReader.io.out.bits.data
+    bSrams(c).io.raddr := chunkK
   }
 
   private val aConverters = Seq.fill(params.meshRows)(Module(new Bf16ToFixed(params)))
@@ -89,7 +137,6 @@ class MatmulController(params: AtikParams) extends Module {
   }
 
   private val outConverters = Seq.fill(params.meshRows, params.meshCols)(Module(new FixedToBf16(params, params.accumBits, params.accumFracBits)))
-  private val outBf16 = Wire(Vec(params.meshRows, Vec(params.meshCols, UInt(params.elemBits.W))))
   for (r <- 0 until params.meshRows) {
     for (c <- 0 until params.meshCols) {
       outConverters(r)(c).io.in := accum(r)(c)
@@ -97,81 +144,24 @@ class MatmulController(params: AtikParams) extends Module {
     }
   }
 
-  private val activeLoadA = tileM + loadAIdx < descReg.m
-  private val activeLoadB = tileN + loadBIdx < descReg.n
-  writeElemAddr := descReg.outAddr + (((tileM + outRow) * descReg.ldout + tileN + outCol) << elemOffsetBits)(params.addrBits - 1, 0)
-
-  private val writeLane = elemLane(writeElemAddr)
-  private val outColWideBits = math.max(1, log2Ceil(params.meshCols + params.elemsPerBeat + 1))
-  private val outRowWideBits = math.max(1, log2Ceil(params.meshRows + 2))
-  private val outColWide = outCol.pad(outColWideBits)
-  private val outRowWide = outRow.pad(outRowWideBits)
-  private val nextOutRowWide = outRowWide + 1.U(outRowWideBits.W)
-  private val rowActiveForWrite = tileM + outRow < descReg.m
-  private val writeDataElems = Wire(Vec(params.elemsPerBeat, UInt(params.elemBits.W)))
-  private val writeLaneValids = Wire(Vec(params.elemsPerBeat, Bool()))
-
-  for (lane <- 0 until params.elemsPerBeat) {
-    val laneU = lane.U(elemLaneBits.W)
-    val laneAfterStart = laneU >= writeLane
-    val laneDelta = Mux(laneAfterStart, (laneU - writeLane).pad(outColWideBits), 0.U(outColWideBits.W))
-    val candidateCol = outColWide + laneDelta
-    val globalCol = tileN + candidateCol
-    val inMeshCol = candidateCol < params.meshCols.U(outColWideBits.W)
-    val inMatrixCol = globalCol < descReg.n
-    val valid = rowActiveForWrite && laneAfterStart && inMeshCol && inMatrixCol
-    val selected = Mux1H((0 until params.meshCols).map { col =>
-      (candidateCol === col.U(outColWideBits.W)) -> outBf16(outRow)(col)
-    })
-
-    writeLaneValids(lane) := valid
-    writeDataElems(lane) := Mux(valid, selected, 0.U)
-  }
-
-  private val writeByteMask = Wire(Vec(params.beatBytes, Bool()))
-  for (byte <- 0 until params.beatBytes) {
-    writeByteMask(byte) := writeLaneValids(byte / params.bytesPerElem)
-  }
-  private val writeElemsThisBeat = PopCount(writeLaneValids)
-  private val nextOutColWide = outColWide + writeElemsThisBeat.pad(outColWideBits)
-  private val writePayloadBytes = writeElemsThisBeat << elemOffsetBits
-
-  io.memReadReq.valid := (state === sReqA && activeLoadA) || (state === sReqB && activeLoadB)
-  io.memReadReq.bits.addr := alignedBeat(Mux(state === sReqA, aElemAddr(loadAIdx), bElemAddr(loadBIdx)))
-  io.memReadResp.ready := state === sWaitA || state === sWaitB
-  io.memWriteReq.valid := state === sWriteReq
-  io.memWriteReq.bits.addr := alignedBeat(writeElemAddr)
-  io.memWriteData := Cat(writeDataElems.reverse)
-  io.memWriteMask := writeByteMask.asUInt
-  io.memWriteResp.ready := state === sWriteWait
-
   private val badDims = io.desc.m === 0.U || io.desc.n === 0.U || io.desc.k === 0.U
   private val badAddr = io.desc.aAddr === 0.U || io.desc.bAddr === 0.U || io.desc.outAddr === 0.U
-  private val onLastK = kIdx + 1.U >= descReg.k
-  private val onLastOutCol = nextOutColWide >= params.meshCols.U(outColWideBits.W) || tileN + nextOutColWide >= descReg.n
-  private val onLastOutRow = nextOutRowWide >= params.meshRows.U(outRowWideBits.W) || tileM + nextOutRowWide >= descReg.m
+  private val onLastChunkK = chunkK.pad(32) + 1.U >= activeK
+  private val onLastKChunk = kBase + activeK >= descReg.k
   private val onLastTileCol = tileN + params.meshCols.U >= descReg.n
   private val onLastTileRow = tileM + params.meshRows.U >= descReg.m
-  private val debugPrintf = true.B
 
   private val event = WireDefault(0.U.asTypeOf(new AtikCounterEvent(params)))
   event.totalActive := state =/= sIdle && state =/= sDone && state =/= sError
   event.computeActive := state === sCompute
   event.meshActive := state === sCompute
   event.meshIdle := event.totalActive && state =/= sCompute
-  event.dmaReadActive := state === sReqA || state === sWaitA || state === sReqB || state === sWaitB
-  event.dmaWriteActive := state === sWriteReq || state === sWriteWait
-  event.bytesRead := Mux(io.memReadResp.fire, params.beatBytes.U(params.xLen.W), 0.U)
-  event.bytesWritten := Mux(io.memWriteResp.fire, writePayloadBytes.pad(params.xLen), 0.U)
+  event.dmaReadActive := tileReader.io.active
+  event.dmaWriteActive := tileWriter.io.active
+  event.bytesRead := tileReader.io.bytesRead
+  event.bytesWritten := tileWriter.io.bytesWritten
 
   when(io.start && state === sIdle) {
-    when(debugPrintf) {
-      printf(
-        p"[atik-matmul] command m=${io.desc.m} n=${io.desc.n} k=${io.desc.k} " +
-          p"lda=${io.desc.lda} ldb=${io.desc.ldb} ldout=${io.desc.ldout} " +
-          p"a=0x${Hexadecimal(io.desc.aAddr)} b=0x${Hexadecimal(io.desc.bAddr)} " +
-          p"out=0x${Hexadecimal(io.desc.outAddr)}\n")
-    }
     descReg := io.desc
     errorReg := AtikStatus.ok
     when(badDims) {
@@ -183,16 +173,14 @@ class MatmulController(params: AtikParams) extends Module {
     }.otherwise {
       tileM := 0.U
       tileN := 0.U
-      kIdx := 0.U
+      kBase := 0.U
+      chunkK := 0.U
       state := sInitTile
     }
   }
 
   switch(state) {
     is(sInitTile) {
-      when(debugPrintf) {
-        printf(p"[atik-matmul] tile tileM=${tileM} tileN=${tileN} mesh=${params.meshRows}x${params.meshCols}\n")
-      }
       for (r <- 0 until params.meshRows) {
         aRaw(r) := 0.U
         for (c <- 0 until params.meshCols) {
@@ -202,72 +190,52 @@ class MatmulController(params: AtikParams) extends Module {
       for (c <- 0 until params.meshCols) {
         bRaw(c) := 0.U
       }
-      kIdx := 0.U
-      loadAIdx := 0.U
-      loadBIdx := 0.U
-      outRow := 0.U
-      outCol := 0.U
-      state := sReqA
+      kBase := 0.U
+      chunkK := 0.U
+      state := sStartA
     }
-    is(sReqA) {
-      when(!activeLoadA) {
-        aRaw(loadAIdx) := 0.U
-        when(loadAIdx === (params.meshRows - 1).U) {
-          loadBIdx := 0.U
-          state := sReqB
-        }.otherwise {
-          loadAIdx := loadAIdx + 1.U
-        }
-      }.elsewhen(io.memReadReq.fire) {
-        readElemAddr := aElemAddr(loadAIdx)
-        state := sWaitA
+    is(sStartA) {
+      when(tileReader.io.cmd.fire) {
+        state := sLoadA
       }
     }
-    is(sWaitA) {
-      when(io.memReadResp.fire) {
-        when(io.memReadResp.bits.error) {
+    is(sLoadA) {
+      when(tileReader.io.out.fire) {
+        when(tileReader.io.out.bits.error) {
           errorReg := AtikStatus.dma
           state := sError
-        }.otherwise {
-          aRaw(loadAIdx) := elemFromBeat(io.memReadResp.bits.data, elemLane(readElemAddr))
-          when(loadAIdx === (params.meshRows - 1).U) {
-            loadBIdx := 0.U
-            state := sReqB
-          }.otherwise {
-            loadAIdx := loadAIdx + 1.U
-            state := sReqA
-          }
+        }.elsewhen(tileReader.io.out.bits.last) {
+          state := sStartB
         }
       }
     }
-    is(sReqB) {
-      when(!activeLoadB) {
-        bRaw(loadBIdx) := 0.U
-        when(loadBIdx === (params.meshCols - 1).U) {
-          state := sCompute
-        }.otherwise {
-          loadBIdx := loadBIdx + 1.U
-        }
-      }.elsewhen(io.memReadReq.fire) {
-        readElemAddr := bElemAddr(loadBIdx)
-        state := sWaitB
+    is(sStartB) {
+      when(tileReader.io.cmd.fire) {
+        state := sLoadB
       }
     }
-    is(sWaitB) {
-      when(io.memReadResp.fire) {
-        when(io.memReadResp.bits.error) {
+    is(sLoadB) {
+      when(tileReader.io.out.fire) {
+        when(tileReader.io.out.bits.error) {
           errorReg := AtikStatus.dma
           state := sError
-        }.otherwise {
-          bRaw(loadBIdx) := elemFromBeat(io.memReadResp.bits.data, elemLane(readElemAddr))
-          when(loadBIdx === (params.meshCols - 1).U) {
-            state := sCompute
-          }.otherwise {
-            loadBIdx := loadBIdx + 1.U
-            state := sReqB
-          }
+        }.elsewhen(tileReader.io.out.bits.last) {
+          chunkK := 0.U
+          state := sReadSram
         }
       }
+    }
+    is(sReadSram) {
+      state := sLatchSram
+    }
+    is(sLatchSram) {
+      for (r <- 0 until params.meshRows) {
+        aRaw(r) := Mux(activeM(r), aSrams(r).io.rdata, 0.U)
+      }
+      for (c <- 0 until params.meshCols) {
+        bRaw(c) := Mux(activeN(c), bSrams(c).io.rdata, 0.U)
+      }
+      state := sCompute
     }
     is(sCompute) {
       for (r <- 0 until params.meshRows) {
@@ -275,45 +243,42 @@ class MatmulController(params: AtikParams) extends Module {
           accum(r)(c) := mesh.io.out(r)(c)
         }
       }
-      state := sNextK
+      state := sNextChunkK
     }
-    is(sNextK) {
-      when(onLastK) {
-        outRow := 0.U
-        outCol := 0.U
-        state := sWriteReq
+    is(sNextChunkK) {
+      when(onLastChunkK) {
+        state := sNextKChunk
       }.otherwise {
-        kIdx := kIdx + 1.U
-        loadAIdx := 0.U
-        loadBIdx := 0.U
-        state := sReqA
+        chunkK := chunkK + 1.U
+        state := sReadSram
       }
     }
-    is(sWriteReq) {
-      when(io.memWriteReq.fire) {
-        state := sWriteWait
-      }
-    }
-    is(sWriteWait) {
-      when(io.memWriteResp.fire) {
-        when(io.memWriteResp.bits.error) {
-          errorReg := AtikStatus.dma
-          state := sError
-        }.otherwise {
-          state := sNextOut
+    is(sNextKChunk) {
+      when(onLastKChunk) {
+        state := sStartWrite
+      }.otherwise {
+        kBase := kBase + activeK
+        chunkK := 0.U
+        for (r <- 0 until params.meshRows) {
+          aRaw(r) := 0.U
         }
+        for (c <- 0 until params.meshCols) {
+          bRaw(c) := 0.U
+        }
+        state := sStartA
       }
     }
-    is(sNextOut) {
-      when(onLastOutCol && onLastOutRow) {
+    is(sStartWrite) {
+      when(tileWriter.io.cmd.fire) {
+        state := sWaitWrite
+      }
+    }
+    is(sWaitWrite) {
+      when(tileWriter.io.error) {
+        errorReg := AtikStatus.dma
+        state := sError
+      }.elsewhen(tileWriter.io.done) {
         state := sNextTile
-      }.elsewhen(onLastOutCol) {
-        outCol := 0.U
-        outRow := nextOutRowWide(rowIdxBits - 1, 0)
-        state := sWriteReq
-      }.otherwise {
-        outCol := nextOutColWide(colIdxBits - 1, 0)
-        state := sWriteReq
       }
     }
     is(sNextTile) {
