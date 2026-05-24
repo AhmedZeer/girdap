@@ -43,9 +43,10 @@ class AtikController(params: AtikParams) extends Module {
   private val causalReg = RegInit(false.B)
 
   private val busy = state =/= sIdle && state =/= sDone && state =/= sError
-  private val badOp = io.descriptor.op =/= AtikOps.matmul && io.descriptor.op =/= AtikOps.attention && io.descriptor.op =/= AtikOps.causalAttention
   private val isMatmul = io.descriptor.op === AtikOps.matmul
   private val isAttention = io.descriptor.op === AtikOps.attention || io.descriptor.op === AtikOps.causalAttention
+  private val attentionSupported = if (params.enableAttention) isAttention else false.B
+  private val badOp = !isMatmul && !attentionSupported
 
   io.descriptorStart := false.B
   io.descriptorAddr := descAddrReg
@@ -127,7 +128,7 @@ class AtikController(params: AtikParams) extends Module {
             descReg := io.descriptor
             causalReg := false.B
             state := sLaunchMatmul
-          }.elsewhen(isAttention) {
+          }.elsewhen(attentionSupported) {
             descReg := io.descriptor
             causalReg := io.descriptor.op === AtikOps.causalAttention
             state := sLaunchAttention

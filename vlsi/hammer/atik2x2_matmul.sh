@@ -10,7 +10,7 @@ usage() {
   cat <<USAGE
 Usage: $(basename "$0") [buildfile|syn|par|syn-par]
 
-Runs standalone AtikCore only.
+Runs standalone matmul-only AtikCore for VLSI bring-up.
 
 Default: syn
 USAGE
@@ -63,13 +63,13 @@ else
 fi
 CONF_PREFIX="$SCRIPT_DIR"
 
-CONFIG=Atik2x2RoCCConfig
+CONFIG=Atik2x2MatmulOnlyRoCCConfig
 MESH=2x2
-LABEL=atik2x2
+LABEL=atik2x2-matmul
 VLSI_TOP=AtikCore
 TOOLS_CONF="${CONF_PREFIX}/example-openroad.yml"
 TECH_CONF="${CONF_PREFIX}/example-sky130.yml"
-DESIGN_CONFS="${CONF_PREFIX}/example-designs/sky130-openroad-atik-core-${MESH}.yml"
+DESIGN_CONFS="${CONF_PREFIX}/example-designs/sky130-openroad-atik-core-${MESH}-matmul.yml"
 
 case "$ACTION" in
   buildfile|syn|par|syn-par) ;;

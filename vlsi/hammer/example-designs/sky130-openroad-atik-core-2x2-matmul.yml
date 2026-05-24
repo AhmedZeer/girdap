@@ -1,4 +1,4 @@
-# Sky130/OpenROAD floorplan for standalone AtikCore, 2x2 mesh.
+# Sky130/OpenROAD floorplan for standalone AtikCore, 2x2 mesh, matmul-only VLSI bring-up.
 
 vlsi.inputs.clocks: [
   {name: "clock", period: "50ns", uncertainty: "2ns"}
@@ -32,52 +32,31 @@ vlsi.inputs.placement_constraints:
     type: toplevel
     x: 0
     y: 0
-    width: 3600
-    height: 3600
+    width: 2200
+    height: 2200
     margins:
       left: 20
       right: 20
       top: 20
       bottom: 20
 
-  - path: "AtikCore/attention/kSrams_0/bank/mem/mem_ext/mem_0_0"
-    type: hardmacro
-    x: 140
-    y: 320
-    orientation: r0
-  - path: "AtikCore/attention/kSrams_1/bank/mem/mem_ext/mem_0_0"
-    type: hardmacro
-    x: 140
-    y: 700
-    orientation: r0
-  - path: "AtikCore/attention/qSrams_0/bank/mem/mem_ext/mem_0_0"
-    type: hardmacro
-    x: 140
-    y: 1080
-    orientation: r0
-  - path: "AtikCore/attention/qSrams_1/bank/mem/mem_ext/mem_0_0"
-    type: hardmacro
-    x: 140
-    y: 1460
-    orientation: r0
-
   - path: "AtikCore/matmul/aSrams_0/bank/mem/mem_ext/mem_0_0"
     type: hardmacro
-    x: 3180
+    x: 140
     y: 320
-    orientation: mx
+    orientation: r0
   - path: "AtikCore/matmul/aSrams_1/bank/mem/mem_ext/mem_0_0"
     type: hardmacro
-    x: 3180
+    x: 140
     y: 700
-    orientation: mx
+    orientation: r0
   - path: "AtikCore/matmul/bSrams_0/bank/mem/mem_ext/mem_0_0"
     type: hardmacro
-    x: 3180
-    y: 1080
+    x: 1780
+    y: 320
     orientation: mx
   - path: "AtikCore/matmul/bSrams_1/bank/mem/mem_ext/mem_0_0"
     type: hardmacro
-    x: 3180
-    y: 1460
+    x: 1780
+    y: 700
     orientation: mx

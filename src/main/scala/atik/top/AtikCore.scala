@@ -34,7 +34,7 @@ class AtikCore(params: AtikParams) extends Module {
   private val descriptorDma = Module(new DmaReader(params))
   private val controller = Module(new AtikController(params))
   private val matmul = Module(new MatmulController(params))
-  private val attention = Module(new AttentionController(params))
+  private val attentionOpt = if (params.enableAttention) Some(Module(new AttentionController(params))) else None
   private val sharedMesh = Module(new MacMesh(params))
   private val counters = Module(new CounterBank(params))
   private val statusRegs = Module(new StatusRegs(params))
@@ -49,9 +49,14 @@ class AtikCore(params: AtikParams) extends Module {
   controller.io.matmulDone := matmul.io.done
   controller.io.matmulError := matmul.io.error
   controller.io.matmulEvents := matmul.io.events
-  controller.io.attentionDone := attention.io.done
-  controller.io.attentionError := attention.io.error
-  controller.io.attentionEvents := attention.io.events
+  controller.io.attentionDone := false.B
+  controller.io.attentionError := AtikStatus.unsupportedConfig
+  controller.io.attentionEvents := 0.U.asTypeOf(new AtikCounterEvent(params))
+  attentionOpt.foreach { attention =>
+    controller.io.attentionDone := attention.io.done
+    controller.io.attentionError := attention.io.error
+    controller.io.attentionEvents := attention.io.events
+  }
 
   descriptorReader.io.start := controller.io.descriptorStart
   descriptorReader.io.addr := controller.io.descriptorAddr
@@ -62,18 +67,27 @@ class AtikCore(params: AtikParams) extends Module {
   private val readOwnerMatmul = 1.U(2.W)
   private val readOwnerAttention = 2.U(2.W)
   private val readOwner = RegInit(readOwnerDesc)
+  private val attentionReadValid = WireDefault(false.B)
+  private val attentionReadBits = WireDefault(0.U.asTypeOf(new DmaBeatRequest(params)))
+  attentionOpt.foreach { attention =>
+    attentionReadValid := attention.io.memReadReq.valid
+    attentionReadBits := attention.io.memReadReq.bits
+  }
+
   private val descReadSelected = descriptorDma.io.memReq.valid
   private val matmulReadSelected = !descReadSelected && matmul.io.memReadReq.valid
-  private val attentionReadSelected = !descReadSelected && !matmulReadSelected && attention.io.memReadReq.valid
+  private val attentionReadSelected = !descReadSelected && !matmulReadSelected && attentionReadValid
 
   io.memReadReq.valid := descReadSelected || matmulReadSelected || attentionReadSelected
-  io.memReadReq.bits := MuxCase(attention.io.memReadReq.bits, Seq(
+  io.memReadReq.bits := MuxCase(attentionReadBits, Seq(
     descReadSelected -> descriptorDma.io.memReq.bits,
     matmulReadSelected -> matmul.io.memReadReq.bits
   ))
   descriptorDma.io.memReq.ready := descReadSelected && io.memReadReq.ready
   matmul.io.memReadReq.ready := matmulReadSelected && io.memReadReq.ready
-  attention.io.memReadReq.ready := attentionReadSelected && io.memReadReq.ready
+  attentionOpt.foreach { attention =>
+    attention.io.memReadReq.ready := attentionReadSelected && io.memReadReq.ready
+  }
 
   when(io.memReadReq.fire) {
     readOwner := MuxCase(readOwnerAttention, Seq(
@@ -86,25 +100,42 @@ class AtikCore(params: AtikParams) extends Module {
   descriptorDma.io.memResp.bits := io.memReadResp.bits
   matmul.io.memReadResp.valid := io.memReadResp.valid && readOwner === readOwnerMatmul
   matmul.io.memReadResp.bits := io.memReadResp.bits
-  attention.io.memReadResp.valid := io.memReadResp.valid && readOwner === readOwnerAttention
-  attention.io.memReadResp.bits := io.memReadResp.bits
-  io.memReadResp.ready := MuxCase(attention.io.memReadResp.ready, Seq(
+  private val attentionReadRespReady = WireDefault(false.B)
+  attentionOpt.foreach { attention =>
+    attention.io.memReadResp.valid := io.memReadResp.valid && readOwner === readOwnerAttention
+    attention.io.memReadResp.bits := io.memReadResp.bits
+    attentionReadRespReady := attention.io.memReadResp.ready
+  }
+  io.memReadResp.ready := MuxCase(attentionReadRespReady, Seq(
     (readOwner === readOwnerDesc) -> descriptorDma.io.memResp.ready,
     (readOwner === readOwnerMatmul) -> matmul.io.memReadResp.ready
   ))
 
+  private val attentionWriteValid = WireDefault(false.B)
+  private val attentionWriteBits = WireDefault(0.U.asTypeOf(new DmaBeatRequest(params)))
+  private val attentionWriteData = WireDefault(0.U(params.memDataBits.W))
+  private val attentionWriteMask = WireDefault(0.U((params.memDataBits / 8).W))
+  attentionOpt.foreach { attention =>
+    attentionWriteValid := attention.io.memWriteReq.valid
+    attentionWriteBits := attention.io.memWriteReq.bits
+    attentionWriteData := attention.io.memWriteData
+    attentionWriteMask := attention.io.memWriteMask
+  }
+
   private val matmulWriteSelected = matmul.io.memWriteReq.valid
-  private val attentionWriteSelected = !matmulWriteSelected && attention.io.memWriteReq.valid
+  private val attentionWriteSelected = !matmulWriteSelected && attentionWriteValid
   private val writeOwnerMatmul = 0.U(1.W)
   private val writeOwnerAttention = 1.U(1.W)
   private val writeOwner = RegInit(writeOwnerMatmul)
 
   io.memWriteReq.valid := matmulWriteSelected || attentionWriteSelected
-  io.memWriteReq.bits := Mux(matmulWriteSelected, matmul.io.memWriteReq.bits, attention.io.memWriteReq.bits)
+  io.memWriteReq.bits := Mux(matmulWriteSelected, matmul.io.memWriteReq.bits, attentionWriteBits)
   matmul.io.memWriteReq.ready := matmulWriteSelected && io.memWriteReq.ready
-  attention.io.memWriteReq.ready := attentionWriteSelected && io.memWriteReq.ready
-  io.memWriteData := Mux(matmulWriteSelected, matmul.io.memWriteData, attention.io.memWriteData)
-  io.memWriteMask := Mux(matmulWriteSelected, matmul.io.memWriteMask, attention.io.memWriteMask)
+  attentionOpt.foreach { attention =>
+    attention.io.memWriteReq.ready := attentionWriteSelected && io.memWriteReq.ready
+  }
+  io.memWriteData := Mux(matmulWriteSelected, matmul.io.memWriteData, attentionWriteData)
+  io.memWriteMask := Mux(matmulWriteSelected, matmul.io.memWriteMask, attentionWriteMask)
 
   when(io.memWriteReq.fire) {
     writeOwner := Mux(matmulWriteSelected, writeOwnerMatmul, writeOwnerAttention)
@@ -112,23 +143,35 @@ class AtikCore(params: AtikParams) extends Module {
 
   matmul.io.memWriteResp.valid := io.memWriteResp.valid && writeOwner === writeOwnerMatmul
   matmul.io.memWriteResp.bits := io.memWriteResp.bits
-  attention.io.memWriteResp.valid := io.memWriteResp.valid && writeOwner === writeOwnerAttention
-  attention.io.memWriteResp.bits := io.memWriteResp.bits
-  io.memWriteResp.ready := Mux(writeOwner === writeOwnerMatmul, matmul.io.memWriteResp.ready, attention.io.memWriteResp.ready)
+  private val attentionWriteRespReady = WireDefault(false.B)
+  attentionOpt.foreach { attention =>
+    attention.io.memWriteResp.valid := io.memWriteResp.valid && writeOwner === writeOwnerAttention
+    attention.io.memWriteResp.bits := io.memWriteResp.bits
+    attentionWriteRespReady := attention.io.memWriteResp.ready
+  }
+  io.memWriteResp.ready := Mux(writeOwner === writeOwnerMatmul, matmul.io.memWriteResp.ready, attentionWriteRespReady)
 
   matmul.io.start := controller.io.matmulStart
   matmul.io.desc := controller.io.activeDesc
 
-  private val matmulUsesMesh = matmul.io.meshActive
-  sharedMesh.io.a := Mux(matmulUsesMesh, matmul.io.meshA, attention.io.meshA)
-  sharedMesh.io.b := Mux(matmulUsesMesh, matmul.io.meshB, attention.io.meshB)
-  sharedMesh.io.accIn := Mux(matmulUsesMesh, matmul.io.meshAccIn, attention.io.meshAccIn)
-  matmul.io.meshOut := sharedMesh.io.out
-  attention.io.meshOut := sharedMesh.io.out
+  private val attentionMeshA = WireDefault(0.U.asTypeOf(Vec(params.meshRows, SInt(params.fixedBits.W))))
+  private val attentionMeshB = WireDefault(0.U.asTypeOf(Vec(params.meshCols, SInt(params.fixedBits.W))))
+  private val attentionMeshAccIn = WireDefault(0.U.asTypeOf(Vec(params.meshRows, Vec(params.meshCols, SInt(params.accumBits.W)))))
+  attentionOpt.foreach { attention =>
+    attentionMeshA := attention.io.meshA
+    attentionMeshB := attention.io.meshB
+    attentionMeshAccIn := attention.io.meshAccIn
+    attention.io.meshOut := sharedMesh.io.out
+    attention.io.start := controller.io.attentionStart
+    attention.io.desc := controller.io.activeDesc
+    attention.io.causal := controller.io.causal
+  }
 
-  attention.io.start := controller.io.attentionStart
-  attention.io.desc := controller.io.activeDesc
-  attention.io.causal := controller.io.causal
+  private val matmulUsesMesh = if (params.enableAttention) matmul.io.meshActive else true.B
+  sharedMesh.io.a := Mux(matmulUsesMesh, matmul.io.meshA, attentionMeshA)
+  sharedMesh.io.b := Mux(matmulUsesMesh, matmul.io.meshB, attentionMeshB)
+  sharedMesh.io.accIn := Mux(matmulUsesMesh, matmul.io.meshAccIn, attentionMeshAccIn)
+  matmul.io.meshOut := sharedMesh.io.out
 
   private val counterEvents = WireDefault(controller.io.events)
   counterEvents.dmaReadActive := controller.io.events.dmaReadActive || descriptorDma.io.active

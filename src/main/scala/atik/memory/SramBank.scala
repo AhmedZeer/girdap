@@ -5,6 +5,7 @@ import chisel3.util._
 
 class SramBank(entries: Int, dataBits: Int) extends Module {
   private val addrBits = math.max(1, log2Ceil(entries))
+  private val macroDataBits = math.max(32, dataBits)
 
   val io = IO(new Bundle {
     val wen = Input(Bool())
@@ -14,11 +15,9 @@ class SramBank(entries: Int, dataBits: Int) extends Module {
     val rdata = Output(UInt(dataBits.W))
   })
 
-  private val mem = SyncReadMem(entries, UInt(dataBits.W))
+  private val mem = SyncReadMem(entries, UInt(macroDataBits.W))
+  private val addr = Mux(io.wen, io.waddr, io.raddr)
+  private val readData = mem.readWrite(addr, io.wdata.pad(macroDataBits), true.B, io.wen)
 
-  when(io.wen) {
-    mem.write(io.waddr, io.wdata)
-  }
-
-  io.rdata := mem.read(io.raddr, true.B)
+  io.rdata := readData(dataBits - 1, 0)
 }

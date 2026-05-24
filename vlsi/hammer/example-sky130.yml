@@ -18,16 +18,12 @@ technology.sky130:
 vlsi.inputs.power_spec_mode: "auto"
 vlsi.inputs.power_spec_type: "cpf"
 
-# Specify clock signals. The full Girdap ChipTop is large in Sky130, so start
-# relaxed and tighten only after SRAM macro mapping and placement are stable.
-vlsi.inputs.clocks: [
-  {name: "clock_uncore", period: "50ns", uncertainty: "2ns"}
-]
+# Clock constraints are supplied by the selected AtikCore design YAML.
 
 # Generate Make include to aid in flow
 vlsi.core.build_system: make
 
-# OpenROAD options for the first full-ChipTop pass.
+# Shared OpenROAD options for standalone AtikCore passes.
 par.openroad:
   timing_driven: true
   create_archive_mode: none
@@ -53,19 +49,7 @@ par.openroad:
 drc.magic.generate_only: true
 lvs.netgen.generate_only: true
 
-# Placement Constraints
-vlsi.inputs.placement_constraints:
-  - path: "ChipTop"
-    type: toplevel
-    x: 0
-    y: 0
-    width: 8000
-    height: 8000
-    margins:
-      left: 20
-      right: 20
-      top: 20
-      bottom: 20
+# Placement constraints are supplied by the selected AtikCore design YAML.
 
 # Power Straps
 par.power_straps_mode: generate

@@ -19,7 +19,8 @@ case class AtikParams(
   memDataBits: Int = 128,
   dmaBeatsBits: Int = 16,
   counterCount: Int = 13,
-  matmulKt: Int = 16
+  matmulKt: Int = 16,
+  enableAttention: Boolean = true
 ) {
   require(meshRows > 0 && meshCols > 0, "Atik mesh dimensions must be positive")
   require(Set(2, 4, 8).contains(meshRows), "Atik supports 2x2, 4x4, and 8x8 meshes")
