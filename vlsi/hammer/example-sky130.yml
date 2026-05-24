@@ -1,0 +1,101 @@
+# Technology Setup
+# Technology used is Sky130
+vlsi.core.technology: "hammer.technology.sky130"
+
+vlsi.core.max_threads: 12
+
+# Technology paths
+technology.sky130:
+  sky130A: "/home/ubuntu/.conda-sky130/share/pdk/sky130A"
+  sram22_sky130_macros: "/home/ubuntu/sram22_sky130_macros"
+
+  # this key is OPTIONAL, no NDA files will be used if it does not point to a valid path
+  sky130_nda: "/path/to/skywater-src-nda"
+
+# General Hammer Inputs
+
+# Hammer will auto-generate a CPF for simple power designs; see hammer/src/hammer-vlsi/defaults.yml for more info
+vlsi.inputs.power_spec_mode: "auto"
+vlsi.inputs.power_spec_type: "cpf"
+
+# Specify clock signals. The full Girdap ChipTop is large in Sky130, so start
+# relaxed and tighten only after SRAM macro mapping and placement are stable.
+vlsi.inputs.clocks: [
+  {name: "clock_uncore", period: "50ns", uncertainty: "2ns"}
+]
+
+# Generate Make include to aid in flow
+vlsi.core.build_system: make
+
+# OpenROAD options for the first full-ChipTop pass.
+par.openroad:
+  timing_driven: true
+  create_archive_mode: none
+  write_reports: true
+  floorplan_mode: generate
+  macro_placement.halo: [50, 50]
+  global_placement.timing_driven: true
+  global_placement.routability_driven: true
+  global_placement.placement_padding: 6
+  detailed_placement.placement_padding: 4
+  clock_tree.placement_padding: 2
+  clock_tree_resize.placement_padding: 0
+  clock_tree_resize.setup_margin: 0.0
+  clock_tree_resize.hold_margin: 0.20
+  global_route_resize.hold_margin: 0.60
+  clock_tree_resize.hold_max_buffer_percent: 80
+  global_placement.routing_adjustment: 0.5
+  global_route.routing_adjustment: 0.3
+  global_route_resize.routing_adjustment: 0.2
+
+# Generate signoff scripts/reports without making early bring-up depend on
+# fully clean open-source DRC/LVS.
+drc.magic.generate_only: true
+lvs.netgen.generate_only: true
+
+# Placement Constraints
+vlsi.inputs.placement_constraints:
+  - path: "ChipTop"
+    type: toplevel
+    x: 0
+    y: 0
+    width: 8000
+    height: 8000
+    margins:
+      left: 20
+      right: 20
+      top: 20
+      bottom: 20
+
+# Power Straps
+par.power_straps_mode: generate
+par.generate_power_straps_method: by_tracks
+par.blockage_spacing: 2.0
+par.blockage_spacing_top_layer: met3
+par.generate_power_straps_options:
+  by_tracks:
+    strap_layers:
+      - met4
+      - met5
+    pin_layers:
+      - met5
+    blockage_spacing_met2: 4.0
+    blockage_spacing_met4: 2.0
+    track_width: 3
+    track_width_met5: 1
+    track_spacing: 5
+    track_start: 10
+    track_start_met5: 1
+    power_utilization: 0.1
+    power_utilization_met4: 0.1
+    power_utilization_met5: 0.1
+
+# Pin placement constraints
+vlsi.inputs.pin_mode: generated
+vlsi.inputs.pin.generate_mode: semi_auto
+vlsi.inputs.pin.assignments: [
+  {pins: "*", layers: ["met2", "met4"], side: "bottom"}
+]
+
+# SRAM Compiler options
+vlsi.core.sram_generator_tool: "hammer.technology.sky130.sram_compiler"

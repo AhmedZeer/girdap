@@ -1,0 +1,35 @@
+# Sky130/OpenROAD floorplan for standalone AtikCore, 4x4 mesh.
+
+vlsi.inputs.clocks: [
+  {name: "clock", period: "50ns", uncertainty: "2ns"}
+]
+
+par.openroad:
+  timing_driven: true
+  create_archive_mode: none
+  write_reports: true
+  floorplan_mode: generate
+  macro_placement.halo: [35, 35]
+  global_placement.timing_driven: true
+  global_placement.routability_driven: true
+  global_placement.placement_padding: 5
+  detailed_placement.placement_padding: 3
+  global_placement.routing_adjustment: 0.5
+  global_route.routing_adjustment: 0.3
+  global_route_resize.routing_adjustment: 0.2
+
+drc.magic.generate_only: true
+lvs.netgen.generate_only: true
+
+vlsi.inputs.placement_constraints:
+  - path: "AtikCore"
+    type: toplevel
+    x: 0
+    y: 0
+    width: 2600
+    height: 2600
+    margins:
+      left: 18
+      right: 18
+      top: 18
+      bottom: 18
