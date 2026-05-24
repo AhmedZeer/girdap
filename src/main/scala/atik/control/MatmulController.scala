@@ -103,7 +103,10 @@ class MatmulController(params: AtikParams) extends Module {
 
   private val writeLane = elemLane(writeElemAddr)
   private val outColWideBits = math.max(1, log2Ceil(params.meshCols + params.elemsPerBeat + 1))
+  private val outRowWideBits = math.max(1, log2Ceil(params.meshRows + 2))
   private val outColWide = outCol.pad(outColWideBits)
+  private val outRowWide = outRow.pad(outRowWideBits)
+  private val nextOutRowWide = outRowWide + 1.U(outRowWideBits.W)
   private val rowActiveForWrite = tileM + outRow < descReg.m
   private val writeDataElems = Wire(Vec(params.elemsPerBeat, UInt(params.elemBits.W)))
   private val writeLaneValids = Wire(Vec(params.elemsPerBeat, Bool()))
@@ -146,9 +149,10 @@ class MatmulController(params: AtikParams) extends Module {
   private val badAddr = io.desc.aAddr === 0.U || io.desc.bAddr === 0.U || io.desc.outAddr === 0.U
   private val onLastK = kIdx + 1.U >= descReg.k
   private val onLastOutCol = nextOutColWide >= params.meshCols.U(outColWideBits.W) || tileN + nextOutColWide >= descReg.n
-  private val onLastOutRow = outRow + 1.U >= params.meshRows.U || tileM + outRow + 1.U >= descReg.m
+  private val onLastOutRow = nextOutRowWide >= params.meshRows.U(outRowWideBits.W) || tileM + nextOutRowWide >= descReg.m
   private val onLastTileCol = tileN + params.meshCols.U >= descReg.n
   private val onLastTileRow = tileM + params.meshRows.U >= descReg.m
+  private val debugPrintf = true.B
 
   private val event = WireDefault(0.U.asTypeOf(new AtikCounterEvent(params)))
   event.totalActive := state =/= sIdle && state =/= sDone && state =/= sError
@@ -161,6 +165,13 @@ class MatmulController(params: AtikParams) extends Module {
   event.bytesWritten := Mux(io.memWriteResp.fire, writePayloadBytes.pad(params.xLen), 0.U)
 
   when(io.start && state === sIdle) {
+    when(debugPrintf) {
+      printf(
+        p"[atik-matmul] command m=${io.desc.m} n=${io.desc.n} k=${io.desc.k} " +
+          p"lda=${io.desc.lda} ldb=${io.desc.ldb} ldout=${io.desc.ldout} " +
+          p"a=0x${Hexadecimal(io.desc.aAddr)} b=0x${Hexadecimal(io.desc.bAddr)} " +
+          p"out=0x${Hexadecimal(io.desc.outAddr)}\n")
+    }
     descReg := io.desc
     errorReg := AtikStatus.ok
     when(badDims) {
@@ -179,6 +190,9 @@ class MatmulController(params: AtikParams) extends Module {
 
   switch(state) {
     is(sInitTile) {
+      when(debugPrintf) {
+        printf(p"[atik-matmul] tile tileM=${tileM} tileN=${tileN} mesh=${params.meshRows}x${params.meshCols}\n")
+      }
       for (r <- 0 until params.meshRows) {
         aRaw(r) := 0.U
         for (c <- 0 until params.meshCols) {
@@ -295,7 +309,7 @@ class MatmulController(params: AtikParams) extends Module {
         state := sNextTile
       }.elsewhen(onLastOutCol) {
         outCol := 0.U
-        outRow := outRow + 1.U
+        outRow := nextOutRowWide(rowIdxBits - 1, 0)
         state := sWriteReq
       }.otherwise {
         outCol := nextOutColWide(colIdxBits - 1, 0)
