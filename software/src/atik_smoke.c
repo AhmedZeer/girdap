@@ -16,24 +16,37 @@ static int32_t abs_i32(int32_t value) {
   return value < 0 ? -value : value;
 }
 
-int main(void) {
-  const uint16_t A[4] = {
-      atik_float_to_bf16(1.0f),
-      atik_float_to_bf16(2.0f),
-      atik_float_to_bf16(3.0f),
-      atik_float_to_bf16(4.0f),
-  };
-  const uint16_t B[4] = {
-      atik_float_to_bf16(0.5f),
-      atik_float_to_bf16(-1.0f),
-      atik_float_to_bf16(1.5f),
-      atik_float_to_bf16(2.0f),
-  };
-  uint16_t sw_C[4] = {0, 0, 0, 0};
-  uint16_t hw_C[4] = {0, 0, 0, 0};
+static uint64_t read_cpu_cycles(void) {
+  uint64_t cycles;
+  asm volatile("fence; rdcycle %0" : "=r"(cycles) :: "memory");
+  return cycles;
+}
 
-  atik_ref_matmul_bf16(A, 2, 2, 2, B, 2, 2, sw_C, 2);
-  int hw_rc = atik_matmul_bf16(A, 2, 2, 2, B, 2, 2, hw_C, 2);
+static const uint16_t smoke_A[4] __attribute__((aligned(64))) = {
+    0x3f80,
+    0x4000,
+    0x4040,
+    0x4080,
+};
+
+static const uint16_t smoke_B[4] __attribute__((aligned(64))) = {
+    0x3f00,
+    0xbf80,
+    0x3fc0,
+    0x4000,
+};
+
+static uint16_t smoke_hw_C[32] __attribute__((aligned(64)));
+
+int main(void) {
+  uint16_t sw_C[4] = {0, 0, 0, 0};
+
+  const uint64_t ref_start = read_cpu_cycles();
+  atik_ref_matmul_bf16(smoke_A, 2, 2, 2, smoke_B, 2, 2, sw_C, 2);
+  const uint64_t ref_cycles = read_cpu_cycles() - ref_start;
+
+  int hw_rc = atik_matmul_bf16(smoke_A, 2, 2, 2, smoke_B, 2, 2, smoke_hw_C, 2);
+  asm volatile("fence rw, rw" ::: "memory");
 
   int32_t sw[4];
   int32_t hw[4];
@@ -42,7 +55,7 @@ int main(void) {
   int mismatches = 0;
   for (int i = 0; i < 4; i++) {
     sw[i] = fixed_x10000(sw_C[i]);
-    hw[i] = fixed_x10000(hw_C[i]);
+    hw[i] = fixed_x10000(smoke_hw_C[i]);
     diff[i] = abs_i32(hw[i] - sw[i]);
     if (diff[i] > max_diff) {
       max_diff = diff[i];
@@ -54,8 +67,10 @@ int main(void) {
 
   const char *status = (hw_rc == ATIK_OK && mismatches == 0) ? "PASS" : "FAIL";
   const atik_log_stage_t stages[] = {
-      {"ref_matmul", 1},
+      {"ref_matmul", ref_cycles},
       {"atik_matmul", atik_read_counter(ATIK_COUNTER_TOTAL_CYCLES)},
+      {"bytes_read", atik_read_counter(ATIK_COUNTER_BYTES_READ)},
+      {"bytes_written", atik_read_counter(ATIK_COUNTER_BYTES_WRITTEN)},
   };
   const atik_log_result_t result = {
       .workload = "atik-smoke",
@@ -67,10 +82,10 @@ int main(void) {
       .hw_rc = hw_rc,
       .raw_hw_rc = hw_rc,
       .mismatches = mismatches,
-      .cpu_cycles = 2,
+      .cpu_cycles = ref_cycles,
       .hw_cycles = atik_read_counter(ATIK_COUNTER_TOTAL_CYCLES),
       .stages = stages,
-      .stage_count = 2,
+      .stage_count = 4,
       .hw_max_abs_diff_x100000 = max_diff * 10,
       .cpu_ref_max_abs_diff_x100000 = 0,
   };

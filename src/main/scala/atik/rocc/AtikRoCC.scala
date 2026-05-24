@@ -13,8 +13,8 @@ import org.chipsalliance.cde.config.{Config, Parameters}
 class AtikRoCC(
   opcodes: OpcodeSet,
   val atikParams: AtikParams = AtikParams(),
-  val numTLSourceIds: Int = 2,
-  val clientName: String = "AtikRoCC"
+  val clientName: String = "AtikRoCC",
+  val numTLSourceIds: Int = 2
 )(implicit p: Parameters) extends LazyRoCC(opcodes) {
   override lazy val module = new AtikRoCCModule(this)
   override val atlNode = TLClientNode(
@@ -33,9 +33,10 @@ class AtikRoCCModule(outer: AtikRoCC)(implicit p: Parameters)
   val cacheParams = tileParams.dcache.get
 
   private val params = outer.atikParams.copy(xLen = xLen, memDataBits = cacheDataBits)
-  private val beatLgSize = log2Ceil(params.beatBytes).U
-  private val readSource = 0.U(log2Ceil(outer.numTLSourceIds).W)
-  private val writeSource = 1.U(log2Ceil(outer.numTLSourceIds).W)
+  private val readLgSize = log2Ceil(params.beatBytes).U
+  private val tlSourceIdxWidth = math.max(1, log2Ceil(outer.numTLSourceIds))
+  private val readTlSourceId = 0
+  private val writeTlSourceId = 1
 
   private val top = Module(new AtikTop(params))
   private val router = Module(new AtikCommandRouter(params))
@@ -64,54 +65,66 @@ class AtikRoCCModule(outer: AtikRoCC)(implicit p: Parameters)
   io.busy := top.io.busy || router.io.busy
   io.interrupt := false.B
 
-  private val (tlOut, edgeOut) = outer.atlNode.out(0)
-  private val readOutstanding = RegInit(false.B)
-  private val writeOutstanding = RegInit(false.B)
-  private val tlIdle = !readOutstanding && !writeOutstanding
-  private val writeSelected = !top.io.memReadReq.valid && top.io.memWriteReq.valid
-  private val readSelected = top.io.memReadReq.valid
+  val (tlOut, edgesOut) = outer.atlNode.out(0)
+  private val dHasData = edgesOut.hasData(tlOut.d.bits)
+  private val dSource = tlOut.d.bits.source(tlSourceIdxWidth - 1, 0)
+  private val dIsReadResp = dHasData && tlOut.d.bits.opcode === TLMessages.AccessAckData
+  private val dIsWriteAck = !dHasData && tlOut.d.bits.opcode === TLMessages.AccessAck
+  private val dError = tlOut.d.bits.denied
 
-  private val getBits = edgeOut.Get(
-    fromSource = readSource,
+  private val memOutstanding = RegInit(false.B)
+  private val outstandingRead = RegInit(false.B)
+  private val outstandingWrite = RegInit(false.B)
+  private val readSelected = top.io.memReadReq.valid
+  private val writeSelected = !readSelected && top.io.memWriteReq.valid
+
+  private val getBits = edgesOut.Get(
+    fromSource = readTlSourceId.U(tlSourceIdxWidth.W),
     toAddress = top.io.memReadReq.bits.addr,
-    lgSize = beatLgSize
+    lgSize = readLgSize
   )._2
-  private val putBits = edgeOut.Put(
-    fromSource = writeSource,
+  private val putBits = edgesOut.Put(
+    fromSource = writeTlSourceId.U(tlSourceIdxWidth.W),
     toAddress = top.io.memWriteReq.bits.addr,
-    lgSize = beatLgSize,
+    lgSize = readLgSize,
     data = top.io.memWriteData,
     mask = top.io.memWriteMask
   )._2
 
-  tlOut.a.valid := tlIdle && (readSelected || writeSelected)
-  tlOut.a.bits := Mux(readSelected, getBits, putBits)
-  top.io.memReadReq.ready := tlIdle && readSelected && tlOut.a.ready
-  top.io.memWriteReq.ready := tlIdle && writeSelected && tlOut.a.ready
+  tlOut.a.valid := !memOutstanding && (readSelected || writeSelected)
+  tlOut.a.bits := Mux(writeSelected, putBits, getBits)
+  tlOut.d.ready := memOutstanding && Mux(
+    outstandingRead,
+    top.io.memReadResp.ready,
+    Mux(outstandingWrite, top.io.memWriteResp.ready, false.B)
+  )
 
-  when(tlOut.a.fire) {
-    readOutstanding := readSelected
-    writeOutstanding := writeSelected
-  }
-
-  private val dHasData = edgeOut.hasData(tlOut.d.bits)
-  top.io.memReadResp.valid := tlOut.d.valid && readOutstanding && dHasData
-  top.io.memReadResp.bits.data := tlOut.d.bits.data
-  top.io.memReadResp.bits.error := tlOut.d.bits.denied || tlOut.d.bits.corrupt
-  top.io.memWriteResp.valid := tlOut.d.valid && writeOutstanding && !dHasData
-  top.io.memWriteResp.bits.error := tlOut.d.bits.denied
-  tlOut.d.ready := Mux(readOutstanding, top.io.memReadResp.ready, Mux(writeOutstanding, top.io.memWriteResp.ready, true.B))
-
-  when(tlOut.d.fire) {
-    readOutstanding := false.B
-    writeOutstanding := false.B
-  }
+  top.io.memReadReq.ready := !memOutstanding && readSelected && tlOut.a.ready
+  top.io.memWriteReq.ready := !memOutstanding && writeSelected && tlOut.a.ready
 
   tlOut.b.ready := true.B
   tlOut.c.valid := false.B
   tlOut.c.bits := DontCare
   tlOut.e.valid := false.B
   tlOut.e.bits := DontCare
+
+  when(tlOut.a.fire) {
+    memOutstanding := true.B
+    outstandingRead := readSelected
+    outstandingWrite := writeSelected
+  }
+
+  top.io.memReadResp.valid := tlOut.d.valid && memOutstanding && outstandingRead
+  top.io.memReadResp.bits.data := tlOut.d.bits.data(params.memDataBits - 1, 0)
+  top.io.memReadResp.bits.error := dError || dSource =/= readTlSourceId.U || !dIsReadResp
+  top.io.memWriteResp.valid := tlOut.d.valid && memOutstanding && outstandingWrite
+  top.io.memWriteResp.bits.error := dError || dSource =/= writeTlSourceId.U || !dIsWriteAck
+
+  when((top.io.memReadResp.fire && outstandingRead) || (top.io.memWriteResp.fire && outstandingWrite)) {
+    memOutstanding := false.B
+    outstandingRead := false.B
+    outstandingWrite := false.B
+  }
 }
 
 class WithAtikRoCC(params: AtikParams = AtikParams()) extends Config((site, here, up) => {

@@ -22,7 +22,7 @@ extern "C" {
 
 #define ATIK_ROCC_INSN(rd, rs1, rs2, funct) \
   asm volatile( \
-      ".insn r %3, 0, %4, %0, %1, %2" \
+      ".insn r %3, 7, %4, %0, %1, %2" \
       : "=r"(rd) \
       : "r"((uint64_t)(rs1)), "r"((uint64_t)(rs2)), \
         "i"(ATIK_CUSTOM_OPCODE_VALUE), "i"(funct))

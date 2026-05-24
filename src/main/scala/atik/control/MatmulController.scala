@@ -97,27 +97,55 @@ class MatmulController(params: AtikParams) extends Module {
     }
   }
 
-  private val writeBf16 = outBf16(outRow)(outCol)
   private val activeLoadA = tileM + loadAIdx < descReg.m
   private val activeLoadB = tileN + loadBIdx < descReg.n
   writeElemAddr := descReg.outAddr + (((tileM + outRow) * descReg.ldout + tileN + outCol) << elemOffsetBits)(params.addrBits - 1, 0)
+
   private val writeLane = elemLane(writeElemAddr)
-  private val writeShift = writeLane << 4
-  private val maskShift = writeLane << 1
+  private val outColWideBits = math.max(1, log2Ceil(params.meshCols + params.elemsPerBeat + 1))
+  private val outColWide = outCol.pad(outColWideBits)
+  private val rowActiveForWrite = tileM + outRow < descReg.m
+  private val writeDataElems = Wire(Vec(params.elemsPerBeat, UInt(params.elemBits.W)))
+  private val writeLaneValids = Wire(Vec(params.elemsPerBeat, Bool()))
+
+  for (lane <- 0 until params.elemsPerBeat) {
+    val laneU = lane.U(elemLaneBits.W)
+    val laneAfterStart = laneU >= writeLane
+    val laneDelta = Mux(laneAfterStart, (laneU - writeLane).pad(outColWideBits), 0.U(outColWideBits.W))
+    val candidateCol = outColWide + laneDelta
+    val globalCol = tileN + candidateCol
+    val inMeshCol = candidateCol < params.meshCols.U(outColWideBits.W)
+    val inMatrixCol = globalCol < descReg.n
+    val valid = rowActiveForWrite && laneAfterStart && inMeshCol && inMatrixCol
+    val selected = Mux1H((0 until params.meshCols).map { col =>
+      (candidateCol === col.U(outColWideBits.W)) -> outBf16(outRow)(col)
+    })
+
+    writeLaneValids(lane) := valid
+    writeDataElems(lane) := Mux(valid, selected, 0.U)
+  }
+
+  private val writeByteMask = Wire(Vec(params.beatBytes, Bool()))
+  for (byte <- 0 until params.beatBytes) {
+    writeByteMask(byte) := writeLaneValids(byte / params.bytesPerElem)
+  }
+  private val writeElemsThisBeat = PopCount(writeLaneValids)
+  private val nextOutColWide = outColWide + writeElemsThisBeat.pad(outColWideBits)
+  private val writePayloadBytes = writeElemsThisBeat << elemOffsetBits
 
   io.memReadReq.valid := (state === sReqA && activeLoadA) || (state === sReqB && activeLoadB)
   io.memReadReq.bits.addr := alignedBeat(Mux(state === sReqA, aElemAddr(loadAIdx), bElemAddr(loadBIdx)))
   io.memReadResp.ready := state === sWaitA || state === sWaitB
   io.memWriteReq.valid := state === sWriteReq
   io.memWriteReq.bits.addr := alignedBeat(writeElemAddr)
-  io.memWriteData := writeBf16.pad(params.memDataBits) << writeShift
-  io.memWriteMask := 3.U((params.memDataBits / 8).W) << maskShift
+  io.memWriteData := Cat(writeDataElems.reverse)
+  io.memWriteMask := writeByteMask.asUInt
   io.memWriteResp.ready := state === sWriteWait
 
   private val badDims = io.desc.m === 0.U || io.desc.n === 0.U || io.desc.k === 0.U
   private val badAddr = io.desc.aAddr === 0.U || io.desc.bAddr === 0.U || io.desc.outAddr === 0.U
   private val onLastK = kIdx + 1.U >= descReg.k
-  private val onLastOutCol = outCol + 1.U >= params.meshCols.U || tileN + outCol + 1.U >= descReg.n
+  private val onLastOutCol = nextOutColWide >= params.meshCols.U(outColWideBits.W) || tileN + nextOutColWide >= descReg.n
   private val onLastOutRow = outRow + 1.U >= params.meshRows.U || tileM + outRow + 1.U >= descReg.m
   private val onLastTileCol = tileN + params.meshCols.U >= descReg.n
   private val onLastTileRow = tileM + params.meshRows.U >= descReg.m
@@ -130,7 +158,7 @@ class MatmulController(params: AtikParams) extends Module {
   event.dmaReadActive := state === sReqA || state === sWaitA || state === sReqB || state === sWaitB
   event.dmaWriteActive := state === sWriteReq || state === sWriteWait
   event.bytesRead := Mux(io.memReadResp.fire, params.beatBytes.U(params.xLen.W), 0.U)
-  event.bytesWritten := Mux(io.memWriteResp.fire, params.bytesPerElem.U(params.xLen.W), 0.U)
+  event.bytesWritten := Mux(io.memWriteResp.fire, writePayloadBytes.pad(params.xLen), 0.U)
 
   when(io.start && state === sIdle) {
     descReg := io.desc
@@ -270,7 +298,7 @@ class MatmulController(params: AtikParams) extends Module {
         outRow := outRow + 1.U
         state := sWriteReq
       }.otherwise {
-        outCol := outCol + 1.U
+        outCol := nextOutColWide(colIdxBits - 1, 0)
         state := sWriteReq
       }
     }
