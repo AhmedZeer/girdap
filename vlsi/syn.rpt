@@ -1,0 +1,54 @@
+# Atik Synthesis Report
+
+## Overview
+
+| Metric | 2x2 normal | 4x4 normal | 8x8 normal |
+|---|---:|---:|---:|
+| Config | `Atik2x2RoCCConfig` | `Atik4x4RoCCConfig` | `Atik8x8RoCCConfig` |
+| Mesh size | 2x2 | 4x4 | 8x8 |
+| MAC lanes | 4 | 16 | 64 |
+| Top synthesized cells | 114,575 | 190,722 | 477,464 |
+| Top synthesized area | 721,211.7 | 1,217,183.6 | 3,130,859.0 |
+| Wires | 115,043 | 191,834 | 480,224 |
+| Wire bits | 127,965 | 215,104 | 540,342 |
+| Area per MAC lane | 180,302.9 | 76,074.0 | 48,919.7 |
+
+## Area
+
+| Module | 2x2 normal area | 4x4 normal area | 8x8 normal area |
+|---|---:|---:|---:|
+| `AttentionController` | 192,507.1 | 232,010.0 | 369,431.8 |
+| `MatmulController` | 127,462.2 | 133,305.4 | 154,623.3 |
+| `AttentionScalarMul` | 99,010.0 | 99,010.0 | 99,010.0 |
+| `TileDmaReader` | 81,989.9 | 81,942.3 | 81,908.6 |
+| `TileDmaWriter` | 5,700.5 | 9,265.1 | 17,186.5 |
+| `CounterBank` | 20,287.0 | 20,287.0 | 20,287.0 |
+| `DescriptorReader` | 5,003.5 | 4,411.7 | 4,411.7 |
+| `FixedToBf16` | 4,272.8 | 4,379.2 | 4,299.1 |
+| `Bf16ToFixed` | 1,632.8 | 1,632.8 | 1,626.6 |
+| `ExpLut` | 3,833.7 | 3,907.5 | 3,956.3 |
+| `ReciprocalLut` | 6,129.6 | 6,129.6 | 6,129.6 |
+| `DmaReader` | 1,537.7 | 1,537.7 | 1,537.7 |
+| `AtikController` | 3,513.4 | 3,503.4 | 3,513.4 |
+| `StatusRegs` | 493.0 | 493.0 | 493.0 |
+| `SramBank` | 48.8 | 48.8 | 48.8 |
+
+## Cells
+
+| Module | 2x2 normal cells | 4x4 normal cells | 8x8 normal cells |
+|---|---:|---:|---:|
+| `AttentionController` | 31,964 | 43,047 | 76,205 |
+| `MatmulController` | 20,546 | 22,355 | 29,063 |
+| `AttentionScalarMul` | 14,445 | 14,445 | 14,445 |
+| `TileDmaReader` | 12,932 | 12,892 | 12,850 |
+| `TileDmaWriter` | 1,094 | 1,690 | 2,824 |
+| `CounterBank` | 3,934 | 3,934 | 3,934 |
+| `DescriptorReader` | 1,510 | 1,282 | 1,282 |
+| `FixedToBf16` | 663 | 658 | 649 |
+| `Bf16ToFixed` | 271 | 271 | 280 |
+| `ExpLut` | 707 | 723 | 729 |
+| `ReciprocalLut` | 1,079 | 1,079 | 1,079 |
+| `DmaReader` | 458 | 458 | 458 |
+| `AtikController` | 1,106 | 1,104 | 1,106 |
+| `StatusRegs` | 67 | 67 | 67 |
+| `SramBank` | 6 | 6 | 6 |
