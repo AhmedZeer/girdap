@@ -21,6 +21,21 @@
 
 #define SAMPLE_COUNT 10
 
+
+#ifndef ATIK_PROFILE_PROGRESS
+#define ATIK_PROFILE_PROGRESS 1
+#endif
+
+#if ATIK_PROFILE_PROGRESS
+#define ATIK_PROGRESS(...)        \
+  do {                            \
+    printf(__VA_ARGS__);          \
+    printf("\n");                \
+  } while (0)
+#else
+#define ATIK_PROGRESS(...) do { } while (0)
+#endif
+
 static int32_t abs_i32(int32_t value) {
   return value < 0 ? -value : value;
 }
@@ -202,6 +217,7 @@ static void account_cpu_cycles(uint64_t cycles, uint64_t *stage_cycles, uint64_t
 }
 
 static int profile_linear_replay_bf16(
+    const char *op_name,
     const uint16_t *x,
     int rows,
     int in_cols,
@@ -222,17 +238,21 @@ static int profile_linear_replay_bf16(
     int32_t *hw_max_diff_x100000,
     int *hw_mismatches,
     uint64_t *raw_hw_rc) {
+  ATIK_PROGRESS("[cpu] begin linear %s rows=%d in=%d out=%d", op_name, rows, in_cols, out_cols);
   uint64_t start = atik_bench_read_cycles();
   linear_ref_bf16(x, rows, in_cols, ldx, weight, out_cols, bias, cpu_out, cpu_ldout);
   uint64_t cpu_cycles = atik_bench_read_cycles() - start;
   account_cpu_cycles(cpu_cycles, cpu_stage_cycles, cpu_total_cycles);
   if (cpu_replaced_cycles != 0) *cpu_replaced_cycles += cpu_cycles;
+  ATIK_PROGRESS("[cpu] finished linear %s cycles=%llu", op_name, (unsigned long long)cpu_cycles);
 
+  ATIK_PROGRESS("[hw] begin linear %s rows=%d in=%d out=%d", op_name, rows, in_cols, out_cols);
   uint64_t before_hw = hw_stage_cycles != 0 ? *hw_stage_cycles : 0;
   int rc = linear_atik_bf16(x, rows, in_cols, ldx, weight, out_cols, bias, hw_out, hw_ldout, hw_stage_cycles);
   uint64_t hw_cycles = hw_stage_cycles != 0 ? (*hw_stage_cycles - before_hw) : 0;
   if (hw_replacement_cycles != 0) *hw_replacement_cycles += hw_cycles;
   if (rc != ATIK_OK) {
+    ATIK_PROGRESS("[hw] finished linear %s rc=%d cycles=%llu", op_name, rc, (unsigned long long)hw_cycles);
     if (raw_hw_rc != 0 && *raw_hw_rc == ATIK_OK) *raw_hw_rc = (uint64_t)rc;
     if (hw_mismatches != 0) *hw_mismatches += 1;
     return rc;
@@ -243,10 +263,13 @@ static int profile_linear_replay_bf16(
                                            tolerance_x100000, &op_max_diff);
   update_max_i32(hw_max_diff_x100000, op_max_diff);
   if (hw_mismatches != 0) *hw_mismatches += op_mismatches;
+  ATIK_PROGRESS("[hw] finished linear %s rc=%d cycles=%llu mismatches=%d max_diff_x100000=%d",
+                op_name, rc, (unsigned long long)hw_cycles, op_mismatches, op_max_diff);
   return rc;
 }
 
 static int profile_attention_replay_bf16(
+    const char *op_name,
     const uint16_t *q,
     int q_rows,
     int d_k,
@@ -272,13 +295,18 @@ static int profile_attention_replay_bf16(
     int32_t *hw_max_diff_x100000,
     int *hw_mismatches,
     uint64_t *raw_hw_rc) {
+  ATIK_PROGRESS("[cpu] begin attention %s q=%d kv=%d d=%d value=%d causal=%d",
+                op_name, q_rows, kv_rows, d_k, value_cols, causal);
   uint64_t start = atik_bench_read_cycles();
   atik_ref_attention_bf16(q, q_rows, d_k, ldq, k, kv_rows, ldk, v, value_cols, ldv,
                           scale_bf16, cpu_out, cpu_ldout, causal);
   uint64_t cpu_cycles = atik_bench_read_cycles() - start;
   account_cpu_cycles(cpu_cycles, cpu_stage_cycles, cpu_total_cycles);
   if (cpu_replaced_cycles != 0) *cpu_replaced_cycles += cpu_cycles;
+  ATIK_PROGRESS("[cpu] finished attention %s cycles=%llu", op_name, (unsigned long long)cpu_cycles);
 
+  ATIK_PROGRESS("[hw] begin attention %s q=%d kv=%d d=%d value=%d causal=%d",
+                op_name, q_rows, kv_rows, d_k, value_cols, causal);
   start = atik_bench_read_cycles();
   int rc = causal ? atik_causal_attention_bf16(q, q_rows, d_k, ldq, k, kv_rows, ldk, v, value_cols, ldv,
                                                scale_bf16, hw_out, hw_ldout)
@@ -289,6 +317,7 @@ static int profile_attention_replay_bf16(
   if (hw_stage_cycles != 0) *hw_stage_cycles += hw_cycles;
   if (hw_replacement_cycles != 0) *hw_replacement_cycles += hw_cycles;
   if (rc != ATIK_OK) {
+    ATIK_PROGRESS("[hw] finished attention %s rc=%d cycles=%llu", op_name, rc, (unsigned long long)hw_cycles);
     if (raw_hw_rc != 0 && *raw_hw_rc == ATIK_OK) *raw_hw_rc = (uint64_t)rc;
     if (hw_mismatches != 0) *hw_mismatches += 1;
     return rc;
@@ -299,6 +328,8 @@ static int profile_attention_replay_bf16(
                                            tolerance_x100000, &op_max_diff);
   update_max_i32(hw_max_diff_x100000, op_max_diff);
   if (hw_mismatches != 0) *hw_mismatches += op_mismatches;
+  ATIK_PROGRESS("[hw] finished attention %s rc=%d cycles=%llu mismatches=%d max_diff_x100000=%d",
+                op_name, rc, (unsigned long long)hw_cycles, op_mismatches, op_max_diff);
   return rc;
 }
 
@@ -468,6 +499,7 @@ static void gpt_attention_heads_profiled(const gpt2_prefill_case_t *tc, gpt2_sta
   for (int h = 0; h < tc->n_heads; h++) {
     int base = h * tc->head_dim;
     profile_attention_replay_bf16(
+        "gpt.attn.head",
         gpt_q + base, tc->seq_len, tc->head_dim, GPT2_PREFILL_MAX_D_MODEL,
         gpt_k + base, tc->seq_len, GPT2_PREFILL_MAX_D_MODEL,
         gpt_v + base, tc->head_dim, GPT2_PREFILL_MAX_D_MODEL,
@@ -525,33 +557,37 @@ static void gpt_forward_profiled(const gpt2_prefill_case_t *tc, gpt2_stats_t *st
   memset(stats, 0, sizeof(*stats));
   stats->raw_hw_rc = ATIK_OK;
   atik_clear_counters();
+  ATIK_PROGRESS("[case] begin gpt2 %s seq=%d d=%d layers=%d", tc->name, tc->seq_len, tc->d_model, tc->n_layers);
 
   uint64_t start = atik_bench_read_cycles();
   gpt_embeddings(tc, gpt_x);
   account_cpu_cycles(atik_bench_read_cycles() - start, &stats->embedding_cycles, &stats->cpu_total_cycles);
+  ATIK_PROGRESS("[cpu] finished gpt.embedding");
 
   for (int layer = 0; layer < tc->n_layers; layer++) {
+    ATIK_PROGRESS("[layer] begin gpt layer=%d", layer);
     start = atik_bench_read_cycles();
     layer_norm_bf16(gpt_x, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
                     gpt_layer_vec(tc->ln1_gamma, layer, tc->d_model),
                     gpt_layer_vec(tc->ln1_beta, layer, tc->d_model), gpt_ln, GPT2_PREFILL_MAX_D_MODEL);
     account_cpu_cycles(atik_bench_read_cycles() - start, &stats->ln_cycles, &stats->cpu_total_cycles);
+    ATIK_PROGRESS("[cpu] finished gpt.ln1 layer=%d", layer);
 
-    profile_linear_replay_bf16(gpt_ln, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
+    profile_linear_replay_bf16("gpt.q", gpt_ln, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
                                gpt_layer_w_dxd(tc->wq, layer, tc->d_model), tc->d_model,
                                gpt_layer_vec(tc->bq, layer, tc->d_model), gpt_q, GPT2_PREFILL_MAX_D_MODEL,
                                gpt_hw_replay, GPT2_PREFILL_MAX_D_MODEL, (int)tc->tolerance_x100000,
                                0, &stats->qkv_proj_cycles, &stats->cpu_total_cycles,
                                &stats->cpu_replaced_cycles, &stats->hw_replacement_cycles,
                                &stats->hw_max_diff_x100000, &stats->hw_mismatches, &stats->raw_hw_rc);
-    profile_linear_replay_bf16(gpt_ln, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
+    profile_linear_replay_bf16("gpt.k", gpt_ln, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
                                gpt_layer_w_dxd(tc->wk, layer, tc->d_model), tc->d_model,
                                gpt_layer_vec(tc->bk, layer, tc->d_model), gpt_k, GPT2_PREFILL_MAX_D_MODEL,
                                gpt_hw_replay, GPT2_PREFILL_MAX_D_MODEL, (int)tc->tolerance_x100000,
                                0, &stats->qkv_proj_cycles, &stats->cpu_total_cycles,
                                &stats->cpu_replaced_cycles, &stats->hw_replacement_cycles,
                                &stats->hw_max_diff_x100000, &stats->hw_mismatches, &stats->raw_hw_rc);
-    profile_linear_replay_bf16(gpt_ln, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
+    profile_linear_replay_bf16("gpt.v", gpt_ln, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
                                gpt_layer_w_dxd(tc->wv, layer, tc->d_model), tc->d_model,
                                gpt_layer_vec(tc->bv, layer, tc->d_model), gpt_v, GPT2_PREFILL_MAX_D_MODEL,
                                gpt_hw_replay, GPT2_PREFILL_MAX_D_MODEL, (int)tc->tolerance_x100000,
@@ -561,7 +597,7 @@ static void gpt_forward_profiled(const gpt2_prefill_case_t *tc, gpt2_stats_t *st
 
     gpt_attention_heads_profiled(tc, stats);
 
-    profile_linear_replay_bf16(gpt_context, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
+    profile_linear_replay_bf16("gpt.out", gpt_context, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
                                gpt_layer_w_dxd(tc->wo, layer, tc->d_model), tc->d_model,
                                gpt_layer_vec(tc->bo, layer, tc->d_model), gpt_attn_out, GPT2_PREFILL_MAX_D_MODEL,
                                gpt_hw_replay, GPT2_PREFILL_MAX_D_MODEL, (int)tc->tolerance_x100000,
@@ -573,14 +609,16 @@ static void gpt_forward_profiled(const gpt2_prefill_case_t *tc, gpt2_stats_t *st
     add_matrix_bf16(gpt_x, GPT2_PREFILL_MAX_D_MODEL, gpt_attn_out, GPT2_PREFILL_MAX_D_MODEL,
                     gpt_res, GPT2_PREFILL_MAX_D_MODEL, tc->seq_len, tc->d_model);
     account_cpu_cycles(atik_bench_read_cycles() - start, &stats->bias_cycles, &stats->cpu_total_cycles);
+    ATIK_PROGRESS("[cpu] finished gpt.attn_residual layer=%d", layer);
 
     start = atik_bench_read_cycles();
     layer_norm_bf16(gpt_res, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
                     gpt_layer_vec(tc->ln2_gamma, layer, tc->d_model),
                     gpt_layer_vec(tc->ln2_beta, layer, tc->d_model), gpt_ln, GPT2_PREFILL_MAX_D_MODEL);
     account_cpu_cycles(atik_bench_read_cycles() - start, &stats->ln_cycles, &stats->cpu_total_cycles);
+    ATIK_PROGRESS("[cpu] finished gpt.ln2 layer=%d", layer);
 
-    profile_linear_replay_bf16(gpt_ln, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
+    profile_linear_replay_bf16("gpt.fc1", gpt_ln, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
                                gpt_layer_w_dxh(tc->w1, layer, tc->d_model, tc->hidden_dim), tc->hidden_dim,
                                gpt_layer_hidden_vec(tc->b1, layer, tc->hidden_dim), gpt_hidden, GPT2_PREFILL_MAX_HIDDEN_DIM,
                                gpt_hw_replay, GPT2_PREFILL_MAX_HIDDEN_DIM, (int)tc->tolerance_x100000,
@@ -591,8 +629,9 @@ static void gpt_forward_profiled(const gpt2_prefill_case_t *tc, gpt2_stats_t *st
     start = atik_bench_read_cycles();
     gelu_bf16(gpt_hidden, gpt_act, tc->seq_len, tc->hidden_dim, GPT2_PREFILL_MAX_HIDDEN_DIM, GPT2_PREFILL_MAX_HIDDEN_DIM);
     account_cpu_cycles(atik_bench_read_cycles() - start, &stats->gelu_cycles, &stats->cpu_total_cycles);
+    ATIK_PROGRESS("[cpu] finished gpt.gelu layer=%d", layer);
 
-    profile_linear_replay_bf16(gpt_act, tc->seq_len, tc->hidden_dim, GPT2_PREFILL_MAX_HIDDEN_DIM,
+    profile_linear_replay_bf16("gpt.fc2", gpt_act, tc->seq_len, tc->hidden_dim, GPT2_PREFILL_MAX_HIDDEN_DIM,
                                gpt_layer_w_hxd(tc->w2, layer, tc->hidden_dim, tc->d_model), tc->d_model,
                                gpt_layer_vec(tc->b2, layer, tc->d_model), gpt_ffn_out, GPT2_PREFILL_MAX_D_MODEL,
                                gpt_hw_replay, GPT2_PREFILL_MAX_D_MODEL, (int)tc->tolerance_x100000,
@@ -604,19 +643,23 @@ static void gpt_forward_profiled(const gpt2_prefill_case_t *tc, gpt2_stats_t *st
     add_matrix_bf16(gpt_res, GPT2_PREFILL_MAX_D_MODEL, gpt_ffn_out, GPT2_PREFILL_MAX_D_MODEL,
                     gpt_x, GPT2_PREFILL_MAX_D_MODEL, tc->seq_len, tc->d_model);
     account_cpu_cycles(atik_bench_read_cycles() - start, &stats->bias_cycles, &stats->cpu_total_cycles);
+    ATIK_PROGRESS("[cpu] finished gpt.ffn_residual layer=%d", layer);
+    ATIK_PROGRESS("[layer] finished gpt layer=%d", layer);
   }
 
   start = atik_bench_read_cycles();
   layer_norm_bf16(gpt_x, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
                   tc->final_ln_gamma, tc->final_ln_beta, gpt_ln, GPT2_PREFILL_MAX_D_MODEL);
   account_cpu_cycles(atik_bench_read_cycles() - start, &stats->ln_cycles, &stats->cpu_total_cycles);
+  ATIK_PROGRESS("[cpu] finished gpt.final_ln");
 
-  profile_linear_replay_bf16(gpt_ln, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
+  profile_linear_replay_bf16("gpt.lm_head", gpt_ln, tc->seq_len, tc->d_model, GPT2_PREFILL_MAX_D_MODEL,
                              tc->lm_head, tc->vocab_size, 0, logits_out, GPT2_PREFILL_MAX_VOCAB_SIZE,
                              gpt_hw_replay, GPT2_PREFILL_MAX_VOCAB_SIZE, (int)tc->tolerance_x100000,
                              0, &stats->lm_head_cycles, &stats->cpu_total_cycles,
                              &stats->cpu_replaced_cycles, &stats->hw_replacement_cycles,
                              &stats->hw_max_diff_x100000, &stats->hw_mismatches, &stats->raw_hw_rc);
+  ATIK_PROGRESS("[case] finished gpt2 %s", tc->name);
 }
 
 static uint64_t gpt_stats_total(const gpt2_stats_t *s) {
@@ -765,6 +808,7 @@ static void tb_attention_heads_profiled(const tiny_bert_case_t *tc, tiny_stats_t
   for (int h = 0; h < tc->n_heads; h++) {
     int base = h * tc->head_dim;
     profile_attention_replay_bf16(
+        "tiny.attn.head",
         tb_q + base, tc->seq_len, tc->head_dim, TINY_BERT_MAX_D_MODEL,
         tb_k + base, tc->seq_len, TINY_BERT_MAX_D_MODEL,
         tb_v + base, tc->head_dim, TINY_BERT_MAX_D_MODEL,
@@ -801,27 +845,30 @@ static void tb_forward_profiled(const tiny_bert_case_t *tc, tiny_stats_t *stats,
   memset(stats, 0, sizeof(*stats));
   stats->raw_hw_rc = ATIK_OK;
   atik_clear_counters();
+  ATIK_PROGRESS("[case] begin tiny-bert %s seq=%d d=%d layers=%d", tc->name, tc->seq_len, tc->d_model, tc->n_layers);
 
   uint64_t start = atik_bench_read_cycles();
   tb_embeddings(tc, tb_x);
   account_cpu_cycles(atik_bench_read_cycles() - start, &stats->embedding_cycles, &stats->cpu_total_cycles);
+  ATIK_PROGRESS("[cpu] finished tiny.embedding");
 
   for (int layer = 0; layer < tc->n_layers; layer++) {
-    profile_linear_replay_bf16(tb_x, tc->seq_len, tc->d_model, TINY_BERT_MAX_D_MODEL,
+    ATIK_PROGRESS("[layer] begin tiny layer=%d", layer);
+    profile_linear_replay_bf16("tiny.q", tb_x, tc->seq_len, tc->d_model, TINY_BERT_MAX_D_MODEL,
                                tb_layer_w_dxd(tc->wq, layer, tc->d_model), tc->d_model,
                                tb_layer_vec(tc->bq, layer, tc->d_model), tb_q, TINY_BERT_MAX_D_MODEL,
                                tb_hw_replay, TINY_BERT_MAX_D_MODEL, (int)tc->tolerance_x100000,
                                0, &stats->qkv_proj_cycles, &stats->cpu_total_cycles,
                                &stats->cpu_replaced_cycles, &stats->hw_replacement_cycles,
                                &stats->hw_max_diff_x100000, &stats->hw_mismatches, &stats->raw_hw_rc);
-    profile_linear_replay_bf16(tb_x, tc->seq_len, tc->d_model, TINY_BERT_MAX_D_MODEL,
+    profile_linear_replay_bf16("tiny.k", tb_x, tc->seq_len, tc->d_model, TINY_BERT_MAX_D_MODEL,
                                tb_layer_w_dxd(tc->wk, layer, tc->d_model), tc->d_model,
                                tb_layer_vec(tc->bk, layer, tc->d_model), tb_k, TINY_BERT_MAX_D_MODEL,
                                tb_hw_replay, TINY_BERT_MAX_D_MODEL, (int)tc->tolerance_x100000,
                                0, &stats->qkv_proj_cycles, &stats->cpu_total_cycles,
                                &stats->cpu_replaced_cycles, &stats->hw_replacement_cycles,
                                &stats->hw_max_diff_x100000, &stats->hw_mismatches, &stats->raw_hw_rc);
-    profile_linear_replay_bf16(tb_x, tc->seq_len, tc->d_model, TINY_BERT_MAX_D_MODEL,
+    profile_linear_replay_bf16("tiny.v", tb_x, tc->seq_len, tc->d_model, TINY_BERT_MAX_D_MODEL,
                                tb_layer_w_dxd(tc->wv, layer, tc->d_model), tc->d_model,
                                tb_layer_vec(tc->bv, layer, tc->d_model), tb_v, TINY_BERT_MAX_D_MODEL,
                                tb_hw_replay, TINY_BERT_MAX_D_MODEL, (int)tc->tolerance_x100000,
@@ -831,7 +878,7 @@ static void tb_forward_profiled(const tiny_bert_case_t *tc, tiny_stats_t *stats,
 
     tb_attention_heads_profiled(tc, stats);
 
-    profile_linear_replay_bf16(tb_context, tc->seq_len, tc->d_model, TINY_BERT_MAX_D_MODEL,
+    profile_linear_replay_bf16("tiny.out", tb_context, tc->seq_len, tc->d_model, TINY_BERT_MAX_D_MODEL,
                                tb_layer_w_dxd(tc->wo, layer, tc->d_model), tc->d_model,
                                tb_layer_vec(tc->bo, layer, tc->d_model), tb_attn_out, TINY_BERT_MAX_D_MODEL,
                                tb_hw_replay, TINY_BERT_MAX_D_MODEL, (int)tc->tolerance_x100000,
@@ -846,8 +893,9 @@ static void tb_forward_profiled(const tiny_bert_case_t *tc, tiny_stats_t *stats,
                     tb_layer_vec(tc->attn_ln_gamma, layer, tc->d_model),
                     tb_layer_vec(tc->attn_ln_beta, layer, tc->d_model), tb_x, TINY_BERT_MAX_D_MODEL);
     account_cpu_cycles(atik_bench_read_cycles() - start, &stats->ln_residual_cycles, &stats->cpu_total_cycles);
+    ATIK_PROGRESS("[cpu] finished tiny.attn_residual_ln layer=%d", layer);
 
-    profile_linear_replay_bf16(tb_x, tc->seq_len, tc->d_model, TINY_BERT_MAX_D_MODEL,
+    profile_linear_replay_bf16("tiny.fc1", tb_x, tc->seq_len, tc->d_model, TINY_BERT_MAX_D_MODEL,
                                tb_layer_w_dxh(tc->w1, layer, tc->d_model, tc->hidden_dim), tc->hidden_dim,
                                tb_layer_hidden_vec(tc->b1, layer, tc->hidden_dim), tb_hidden, TINY_BERT_MAX_HIDDEN_DIM,
                                tb_hw_replay, TINY_BERT_MAX_HIDDEN_DIM, (int)tc->tolerance_x100000,
@@ -858,8 +906,9 @@ static void tb_forward_profiled(const tiny_bert_case_t *tc, tiny_stats_t *stats,
     start = atik_bench_read_cycles();
     gelu_bf16(tb_hidden, tb_act, tc->seq_len, tc->hidden_dim, TINY_BERT_MAX_HIDDEN_DIM, TINY_BERT_MAX_HIDDEN_DIM);
     account_cpu_cycles(atik_bench_read_cycles() - start, &stats->gelu_cycles, &stats->cpu_total_cycles);
+    ATIK_PROGRESS("[cpu] finished tiny.gelu layer=%d", layer);
 
-    profile_linear_replay_bf16(tb_act, tc->seq_len, tc->hidden_dim, TINY_BERT_MAX_HIDDEN_DIM,
+    profile_linear_replay_bf16("tiny.fc2", tb_act, tc->seq_len, tc->hidden_dim, TINY_BERT_MAX_HIDDEN_DIM,
                                tb_layer_w_hxd(tc->w2, layer, tc->hidden_dim, tc->d_model), tc->d_model,
                                tb_layer_vec(tc->b2, layer, tc->d_model), tb_ffn_out, TINY_BERT_MAX_D_MODEL,
                                tb_hw_replay, TINY_BERT_MAX_D_MODEL, (int)tc->tolerance_x100000,
@@ -874,9 +923,11 @@ static void tb_forward_profiled(const tiny_bert_case_t *tc, tiny_stats_t *stats,
                     tb_layer_vec(tc->ffn_ln_gamma, layer, tc->d_model),
                     tb_layer_vec(tc->ffn_ln_beta, layer, tc->d_model), tb_x, TINY_BERT_MAX_D_MODEL);
     account_cpu_cycles(atik_bench_read_cycles() - start, &stats->ln_residual_cycles, &stats->cpu_total_cycles);
+    ATIK_PROGRESS("[cpu] finished tiny.ffn_residual_ln layer=%d", layer);
+    ATIK_PROGRESS("[layer] finished tiny layer=%d", layer);
   }
 
-  profile_linear_replay_bf16(tb_x, 1, tc->d_model, TINY_BERT_MAX_D_MODEL,
+  profile_linear_replay_bf16("tiny.pooler", tb_x, 1, tc->d_model, TINY_BERT_MAX_D_MODEL,
                              tc->pool_w, tc->d_model, tc->pool_b, tb_pool, tc->d_model,
                              tb_hw_replay, tc->d_model, (int)tc->tolerance_x100000,
                              0, &stats->pooler_cycles, &stats->cpu_total_cycles,
@@ -886,13 +937,15 @@ static void tb_forward_profiled(const tiny_bert_case_t *tc, tiny_stats_t *stats,
   start = atik_bench_read_cycles();
   tanh_bf16(tb_pool, tb_pool, 1, tc->d_model, tc->d_model, tc->d_model);
   account_cpu_cycles(atik_bench_read_cycles() - start, &stats->tanh_cycles, &stats->cpu_total_cycles);
+  ATIK_PROGRESS("[cpu] finished tiny.tanh");
 
-  profile_linear_replay_bf16(tb_pool, 1, tc->d_model, tc->d_model,
+  profile_linear_replay_bf16("tiny.classifier", tb_pool, 1, tc->d_model, tc->d_model,
                              tc->classifier_w, tc->num_classes, tc->classifier_b, logits_out, tc->num_classes,
                              tb_hw_replay, tc->num_classes, (int)tc->tolerance_x100000,
                              0, &stats->classifier_cycles, &stats->cpu_total_cycles,
                              &stats->cpu_replaced_cycles, &stats->hw_replacement_cycles,
                              &stats->hw_max_diff_x100000, &stats->hw_mismatches, &stats->raw_hw_rc);
+  ATIK_PROGRESS("[case] finished tiny-bert %s", tc->name);
 }
 
 static uint64_t tb_stats_total(const tiny_stats_t *s) {
