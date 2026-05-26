@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Atik Architecture Diagram</title>
+  <style>
+    :root {
+      --ink: #1f2430;
+      --line: #20242c;
+      --muted: #657080;
+      --canvas: #fbfaf7;
+      --host: #d8ecff;
+      --host-2: #dff6dd;
+      --rocc: #ead9ff;
+      --core: #fde4d6;
+      --control: #cbe7ff;
+      --dma: #fff0b8;
+      --sched: #cff2d3;
+      --buffer: #ffd6da;
+      --mesh: #f7f7f2;
+      --softmax: #ffe7a8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--canvas);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    .page {
+      width: 1800px;
+      min-height: 980px;
+      padding: 54px 44px 44px;
+    }
+
+    h1 {
+      margin: 0 0 38px;
+      font-size: 56px;
+      line-height: 1;
+      letter-spacing: 0;
+      font-weight: 760;
+    }
+
+    .diagram {
+      position: relative;
+      display: grid;
+      grid-template-columns: 330px 410px 1fr;
+      gap: 68px;
+      align-items: center;
+    }
+
+    .cluster {
+      position: relative;
+      border: 4px dashed var(--line);
+      border-radius: 24px;
+      background: rgba(255, 255, 255, 0.36);
+      padding: 28px;
+      min-height: 640px;
+    }
+
+    .cluster-title {
+      position: absolute;
+      left: 28px;
+      bottom: -54px;
+      font-size: 29px;
+      font-weight: 620;
+    }
+
+    .stack {
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+
+    .box {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 86px;
+      border: 4px solid var(--line);
+      border-radius: 18px;
+      padding: 16px 20px;
+      text-align: center;
+      font-size: 28px;
+      line-height: 1.12;
+      font-weight: 650;
+      box-shadow: 0 1px 0 rgba(0, 0, 0, 0.08);
+    }
+
+    .small {
+      min-height: 72px;
+      font-size: 22px;
+      border-width: 3px;
+      border-radius: 15px;
+    }
+
+    .host-a { background: var(--host); }
+    .host-b { background: var(--host-2); }
+    .rocc { background: var(--rocc); }
+    .core { background: var(--core); }
+    .control { background: var(--control); }
+    .dma { background: var(--dma); }
+    .sched { background: var(--sched); }
+    .buffer { background: var(--buffer); }
+    .mesh { background: var(--mesh); }
+    .softmax { background: var(--softmax); }
+
+    .rocket {
+      min-height: 620px;
+    }
+
+    .rocket .box {
+      height: 112px;
+    }
+
+    .rocc-wrap {
+      min-height: 530px;
+      margin-top: 70px;
+    }
+
+    .rocc-core {
+      height: 250px;
+      margin-bottom: 36px;
+      font-size: 30px;
+    }
+
+    .expanded {
+      min-height: 640px;
+      padding: 24px;
+    }
+
+    .core-grid {
+      display: grid;
+      grid-template-columns: 260px 270px 1fr;
+      grid-template-rows: 96px 96px 96px 96px 96px 96px;
+      gap: 18px;
+      height: 585px;
+    }
+
+    .desc { grid-column: 1; grid-row: 1; }
+    .tile-dma { grid-column: 1; grid-row: 2; }
+    .desc-dma { grid-column: 1; grid-row: 3; }
+    .matmul { grid-column: 1; grid-row: 4; }
+    .atik-controller { grid-column: 1 / span 2; grid-row: 6; }
+    .mesh-box {
+      grid-column: 2;
+      grid-row: 1 / span 3;
+      position: relative;
+      overflow: hidden;
+      min-height: 282px;
+    }
+    .attention-ctrl { grid-column: 2; grid-row: 4; }
+    .aq { grid-column: 3; grid-row: 1; }
+    .bk { grid-column: 3; grid-row: 1; justify-self: end; width: 48%; }
+    .vbuf { grid-column: 3; grid-row: 2; }
+    .score { grid-column: 3; grid-row: 3; }
+    .out-a { grid-column: 3; grid-row: 4; }
+    .out-b { grid-column: 3; grid-row: 5; }
+    .softmax-engine { grid-column: 3; grid-row: 6; }
+
+    .aq {
+      width: 48%;
+      justify-self: start;
+    }
+
+    .mesh-label {
+      position: relative;
+      z-index: 2;
+      font-size: 30px;
+      font-weight: 670;
+      line-height: 1.08;
+    }
+
+    .mesh-lines {
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(to right, transparent 19%, rgba(31, 36, 48, 0.38) 19.7%, transparent 20.4%),
+        linear-gradient(to right, transparent 39%, rgba(31, 36, 48, 0.38) 39.7%, transparent 40.4%),
+        linear-gradient(to right, transparent 59%, rgba(31, 36, 48, 0.38) 59.7%, transparent 60.4%),
+        linear-gradient(to right, transparent 79%, rgba(31, 36, 48, 0.38) 79.7%, transparent 80.4%),
+        linear-gradient(to bottom, transparent 24%, rgba(31, 36, 48, 0.38) 24.7%, transparent 25.4%),
+        linear-gradient(to bottom, transparent 49%, rgba(31, 36, 48, 0.38) 49.7%, transparent 50.4%),
+        linear-gradient(to bottom, transparent 74%, rgba(31, 36, 48, 0.38) 74.7%, transparent 75.4%);
+      opacity: 0.92;
+    }
+
+    .callout {
+      position: absolute;
+      border-top: 4px solid var(--line);
+      transform-origin: left center;
+      pointer-events: none;
+    }
+
+    .callout:after {
+      content: "";
+      position: absolute;
+      right: -7px;
+      top: -8px;
+      width: 14px;
+      height: 14px;
+      background: var(--line);
+      transform: rotate(45deg);
+    }
+
+    .c1 {
+      width: 270px;
+      left: 300px;
+      top: 200px;
+      transform: rotate(-19deg);
+    }
+
+    .c2 {
+      width: 260px;
+      left: 300px;
+      top: 404px;
+      transform: rotate(54deg);
+    }
+
+    .c3 {
+      width: 220px;
+      left: 738px;
+      top: 206px;
+      transform: rotate(-50deg);
+      border-top-width: 5px;
+    }
+
+    .c4 {
+      width: 220px;
+      left: 738px;
+      top: 457px;
+      transform: rotate(50deg);
+      border-top-width: 5px;
+    }
+
+    .caption {
+      margin-top: 72px;
+      color: var(--muted);
+      font-size: 19px;
+      line-height: 1.5;
+      max-width: 1160px;
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <h1>Atik Architecture</h1>
+
+    <section class="diagram" aria-label="Atik architecture block diagram">
+      <div class="cluster rocket">
+        <div class="stack">
+          <div class="box host-a">Rocket Core</div>
+          <div class="box rocc">Atik RoCC</div>
+          <div class="box host-b">TileLink</div>
+          <div class="box host-b">Memory</div>
+        </div>
+        <div class="cluster-title">RocketChip</div>
+      </div>
+
+      <div class="cluster rocc-wrap">
+        <div class="box core rocc-core">Atik Core</div>
+        <div class="box control">Command Router</div>
+        <div class="cluster-title">Atik RoCC</div>
+      </div>
+
+      <div class="cluster expanded">
+        <div class="core-grid">
+          <div class="box control small desc">Desc Reader</div>
+          <div class="box dma small tile-dma">Tile DMA Engine</div>
+          <div class="box dma small desc-dma">DMA Engine</div>
+          <div class="box sched small matmul">Matmul<br>Controller</div>
+          <div class="box sched small attention-ctrl">Attention<br>Controller</div>
+          <div class="box sched small atik-controller">Atik Controller</div>
+
+          <div class="box mesh mesh-box">
+            <div class="mesh-lines" aria-hidden="true"></div>
+            <div class="mesh-label">Shared<br>Mesh</div>
+          </div>
+
+          <div class="box buffer small aq">A &amp; Q Buffer</div>
+          <div class="box buffer small bk">B &amp; K Buffer</div>
+          <div class="box buffer small vbuf">V Buffer</div>
+          <div class="box buffer small score">Score Buffer</div>
+          <div class="box buffer small out-a">Out Buffer</div>
+          <div class="box buffer small out-b">Out Buffer</div>
+          <div class="box softmax small softmax-engine">Softmax Engine</div>
+        </div>
+        <div class="cluster-title">Atik Core</div>
+      </div>
+
+      <div class="callout c1" aria-hidden="true"></div>
+      <div class="callout c2" aria-hidden="true"></div>
+      <div class="callout c3" aria-hidden="true"></div>
+      <div class="callout c4" aria-hidden="true"></div>
+    </section>
+
+    <p class="caption">
+      The figure keeps the paper-style hierarchy: RocketChip owns the CPU,
+      TileLink, and memory system; Atik RoCC bridges command and memory traffic;
+      Atik Core contains the descriptor path, schedulers, tile DMA, local
+      buffers, shared mesh, and attention-specific softmax machinery.
+    </p>
+  </main>
+</body>
+</html>

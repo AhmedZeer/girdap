@@ -1,0 +1,114 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1670" height="620" viewBox="0 0 1670 620">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="835.0" y="38" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="26" font-weight="700">Attention Benchmark: Per-Case Speedup</text>
+<line x1="90" y1="75" x2="90" y2="465" stroke="#222" stroke-width="2"/>
+<line x1="90" y1="465" x2="1630" y2="465" stroke="#222" stroke-width="2"/>
+<line x1="84" y1="465.00" x2="1630" y2="465.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="470.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">0x</text>
+<line x1="84" y1="387.00" x2="1630" y2="387.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="392.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">51x</text>
+<line x1="84" y1="309.00" x2="1630" y2="309.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="314.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">101x</text>
+<line x1="84" y1="231.00" x2="1630" y2="231.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="236.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">152x</text>
+<line x1="84" y1="153.00" x2="1630" y2="153.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="158.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">202x</text>
+<line x1="84" y1="75.00" x2="1630" y2="75.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="80.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">253x</text>
+<line x1="90" y1="463.46" x2="1630" y2="463.46" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="8 6"/>
+<text x="1626" y="455.46" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13" fill="#8a8f98">RocketCore baseline 1x</text>
+<polyline points="90.00,440.56 192.67,436.49 295.33,447.04 398.00,436.75 500.67,442.24 603.33,452.55 706.00,446.60 808.67,449.23 911.33,450.60 1014.00,456.24 1116.67,443.45 1219.33,448.09 1322.00,443.44 1424.67,439.12 1527.33,442.86 1630.00,450.38" fill="none" stroke="#c9b6ff" stroke-width="3.5"/>
+<circle cx="90.00" cy="440.56" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="192.67" cy="436.49" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="295.33" cy="447.04" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="398.00" cy="436.75" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="500.67" cy="442.24" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="603.33" cy="452.55" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="706.00" cy="446.60" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="808.67" cy="449.23" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="911.33" cy="450.60" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1014.00" cy="456.24" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1116.67" cy="443.45" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1219.33" cy="448.09" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1322.00" cy="443.44" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1424.67" cy="439.12" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1527.33" cy="442.86" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1630.00" cy="450.38" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="90.00,440.56 192.67,398.05 295.33,423.36 398.00,372.04 500.67,375.33 603.33,415.90 706.00,385.14 808.67,392.87 911.33,397.16 1014.00,424.92 1116.67,378.76 1219.33,388.82 1322.00,371.08 1424.67,371.02 1527.33,375.63 1630.00,396.15" fill="none" stroke="#8f63dd" stroke-width="3.5"/>
+<circle cx="90.00" cy="440.56" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="192.67" cy="398.05" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="295.33" cy="423.36" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="398.00" cy="372.04" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="500.67" cy="375.33" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="603.33" cy="415.90" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="706.00" cy="385.14" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="808.67" cy="392.87" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="911.33" cy="397.16" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1014.00" cy="424.92" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1116.67" cy="378.76" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1219.33" cy="388.82" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1322.00" cy="371.08" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1424.67" cy="371.02" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1527.33" cy="375.63" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1630.00" cy="396.15" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="90.00,440.56 192.67,398.05 295.33,423.36 398.00,245.16 500.67,184.22 603.33,311.05 706.00,171.80 808.67,176.13 911.33,178.87 1014.00,304.30 1116.67,183.77 1219.33,175.30 1322.00,116.79 1424.67,190.35 1527.33,166.50 1630.00,174.63" fill="none" stroke="#4b238f" stroke-width="3.5"/>
+<circle cx="90.00" cy="440.56" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="192.67" cy="398.05" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="295.33" cy="423.36" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="398.00" cy="245.16" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="500.67" cy="184.22" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="603.33" cy="311.05" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="706.00" cy="171.80" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="808.67" cy="176.13" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="911.33" cy="178.87" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1014.00" cy="304.30" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1116.67" cy="183.77" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1219.33" cy="175.30" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1322.00" cy="116.79" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1424.67" cy="190.35" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1527.33" cy="166.50" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="1630.00" cy="174.63" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<line x1="90.00" y1="465" x2="90.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="90.00" y="489" transform="rotate(-38 90.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q2 KV2 D2 V2</text>
+<line x1="192.67" y1="465" x2="192.67" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="192.67" y="489" transform="rotate(-38 192.67 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q4 KV4 D4 V4</text>
+<line x1="295.33" y1="465" x2="295.33" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="295.33" y="489" transform="rotate(-38 295.33 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Causal Q4 KV4 D4 V4</text>
+<line x1="398.00" y1="465" x2="398.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="398.00" y="489" transform="rotate(-38 398.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q8 KV8 D8 V8</text>
+<line x1="500.67" y1="465" x2="500.67" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="500.67" y="489" transform="rotate(-38 500.67 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q16 KV16 D16 V16</text>
+<line x1="603.33" y1="465" x2="603.33" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="603.33" y="489" transform="rotate(-38 603.33 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Causal Q16 KV16 D16 V16</text>
+<line x1="706.00" y1="465" x2="706.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="706.00" y="489" transform="rotate(-38 706.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q32 KV32 D32 V32</text>
+<line x1="808.67" y1="465" x2="808.67" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="808.67" y="489" transform="rotate(-38 808.67 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q64 KV64 D64 V64</text>
+<line x1="911.33" y1="465" x2="911.33" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="911.33" y="489" transform="rotate(-38 911.33 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q128 KV128 D128 V128</text>
+<line x1="1014.00" y1="465" x2="1014.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="1014.00" y="489" transform="rotate(-38 1014.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Causal Q128 KV128 D64 V16</text>
+<line x1="1116.67" y1="465" x2="1116.67" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="1116.67" y="489" transform="rotate(-38 1116.67 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q8 KV32 D16 V64</text>
+<line x1="1219.33" y1="465" x2="1219.33" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="1219.33" y="489" transform="rotate(-38 1219.33 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q32 KV8 D64 V16</text>
+<line x1="1322.00" y1="465" x2="1322.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="1322.00" y="489" transform="rotate(-38 1322.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q16 KV128 D32 V8</text>
+<line x1="1424.67" y1="465" x2="1424.67" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="1424.67" y="489" transform="rotate(-38 1424.67 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q64 KV16 D8 V128</text>
+<line x1="1527.33" y1="465" x2="1527.33" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="1527.33" y="489" transform="rotate(-38 1527.33 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q128 KV64 D16 V32</text>
+<line x1="1630.00" y1="465" x2="1630.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="1630.00" y="489" transform="rotate(-38 1630.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">Q32 KV128 D128 V64</text>
+<text x="860.0" y="598" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="600">Problem Size</text>
+<text x="24" y="270.0" transform="rotate(-90 24 270.0)" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="600">Speedup vs RocketCore</text>
+<rect x="1387" y="44" width="235" height="112" fill="#ffffff" stroke="#dddddd"/>
+<line x1="1405" y1="68" x2="1439" y2="68" stroke="#8a8f98" stroke-width="3" stroke-dasharray="7 5"/>
+<text x="1450" y="73" font-family="Helvetica,Arial,sans-serif" font-size="14">RocketCore 1x</text>
+<line x1="1405" y1="93" x2="1439" y2="93" stroke="#c9b6ff" stroke-width="4"/>
+<text x="1450" y="98" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 2x2</text>
+<line x1="1405" y1="118" x2="1439" y2="118" stroke="#8f63dd" stroke-width="4"/>
+<text x="1450" y="123" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 4x4</text>
+<line x1="1405" y1="143" x2="1439" y2="143" stroke="#4b238f" stroke-width="4"/>
+<text x="1450" y="148" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 8x8</text>
+</svg>

@@ -13,13 +13,12 @@
 ✅ Up to **80×** speedup on TinyBERT  
 ✅ Up to **30×** speedup on GPT-2 prefill  
 
-- Don't believe benchmark results? Click to watch the playlist
-- Want to simulate it locally? Check out this video.
-- Have access to AWS F2 instances and want to reproduce the PyTorch benchmarks? Follow this guide.
-- Want to build your own from scratch? Follow this playlist. *(Coming soon)*
+- Don't believe benchmark results? Click to watch the [playlist](https://www.youtube.com/playlist?list=PL6v0daaIvQGvxYVnezbRdfBysHe-s8BjE).
+- Want to simulate it locally? Check out this video. *(Coming soon)*
 
 *From here upon nerdy people can continue reading :)*
 
+![image](docs/static/compare-chips.png)
 
 ## Why Atik ?
 There's definitely a growing interest in academia around Attention accelerators, rivaling the interest in systolic hardware. But honestly, a lot of the current research feels a bit too theoretical. Some of it relies purely on C++ simulators like gem5, lacking time-accurate simulation or a proper VLSI flow. Otherwise, it tends to be closed-source, or a standalone ASIC implementation that doesn't really integrate with standard CPU workloads. 
@@ -31,6 +30,7 @@ Standard vector units simply aren't cutting it anymore. With transformers being 
 To bring it all together: what the open-source hardware community truly needs right now is a dedicated Attention and MatMul accelerator. It needs to support BF16 natively, sit on top of a robust computer architecture like RocketChip, be easily benchmarked against modern PyTorch workloads, and be fully ready for FPGA prototyping.
 
 This is the gap **Atik** is trying to fill. A modern opensource Tightly-Coupled AI accelerator. FPGA-prototypable. VLSI-verified. Preparing for someone to tape it out! 
+![image](docs/static/layout-close-v2.png)
 
 ## How Speedup Is Calculated
 
@@ -73,6 +73,7 @@ Prebuilt AGFI entries are listed in [`firesim/config_hwdb.yaml`](firesim/config_
 ## Benchmark Videos
 
 ## VLSI Flow
+![image](docs/static/compare-masked.png)
 
 Atik also includes a Hammer/OpenROAD flow for standalone `AtikCore` synthesis experiments. The current scripts target the accelerator core rather than a full RocketTile or ChipTop, which keeps the flow focused on the accelerator datapath, controllers, DMA logic, and local buffering. The launch scripts and Sky130/OpenROAD configuration live under [`vlsi/hammer/`](vlsi/hammer/), and the latest synthesis summary is kept in [`vlsi/syn.rpt`](vlsi/syn.rpt).
 

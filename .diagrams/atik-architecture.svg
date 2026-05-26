@@ -1,0 +1,142 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="980" viewBox="0 0 1600 980">
+  <defs>
+    <marker id="arrow-dark" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#262326"/>
+    </marker>
+    <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#2f5f9f"/>
+    </marker>
+    <marker id="arrow-gold" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#c58a12"/>
+    </marker>
+    <style>
+      .title { font: 700 50px Helvetica, Arial, sans-serif; fill: #262326; }
+      .section { font: 700 34px Helvetica, Arial, sans-serif; fill: #262326; }
+      .label { font: 500 26px Helvetica, Arial, sans-serif; fill: #262326; }
+      .small { font: 500 20px Helvetica, Arial, sans-serif; fill: #262326; }
+      .tiny { font: 500 17px Helvetica, Arial, sans-serif; fill: #262326; }
+      .tiletext { font: 500 20px Helvetica, Arial, sans-serif; fill: #ffffff; }
+      .box { fill: #ffffff; stroke: #262326; stroke-width: 5; }
+      .outer { stroke: #262326; stroke-width: 6; }
+      .control { fill: #dce8f5; }
+      .memory { fill: #d3dde4; }
+      .compute { fill: #d9a0b7; }
+      .attention { fill: #fff0c8; }
+      .host { fill: #f4f4f6; }
+      .dark-tile { fill: #4d5964; stroke: #262326; stroke-width: 5; }
+      .red-cell { fill: #dc4265; stroke: #262326; stroke-width: 5; }
+      .arrow { fill: none; stroke: #262326; stroke-width: 5; marker-end: url(#arrow-dark); }
+      .arrow2 { fill: none; stroke: #262326; stroke-width: 5; marker-start: url(#arrow-dark); marker-end: url(#arrow-dark); }
+      .blue { fill: none; stroke: #2f5f9f; stroke-width: 5; marker-end: url(#arrow-blue); }
+      .gold { fill: none; stroke: #c58a12; stroke-width: 5; marker-end: url(#arrow-gold); }
+      .gold2 { fill: none; stroke: #c58a12; stroke-width: 5; marker-start: url(#arrow-gold); marker-end: url(#arrow-gold); }
+    </style>
+  </defs>
+
+  <rect width="1600" height="980" fill="#ffffff"/>
+  <text x="50" y="72" class="title">Atik RoCC BF16 Matmul / Attention Accelerator</text>
+
+  <!-- Host side -->
+  <rect x="45" y="125" width="320" height="735" rx="0" class="outer host"/>
+  <text x="78" y="180" class="section">Rocket / Host</text>
+  <rect x="85" y="215" width="240" height="118" class="box"/>
+  <text x="137" y="288" class="label">Rocket Core</text>
+  <rect x="85" y="385" width="240" height="105" class="box"/>
+  <text x="134" y="450" class="label">RoCC Cmd</text>
+  <rect x="85" y="545" width="240" height="105" class="box"/>
+  <text x="132" y="610" class="label">TileLink</text>
+  <rect x="85" y="705" width="240" height="105" class="box"/>
+  <text x="146" y="770" class="label">Memory</text>
+  <path d="M 205 333 L 205 385" class="arrow"/>
+  <path d="M 205 490 L 205 545" class="arrow"/>
+  <path d="M 205 650 L 205 705" class="arrow2"/>
+
+  <!-- RoCC wrapper -->
+  <rect x="430" y="125" width="360" height="735" rx="0" class="outer control"/>
+  <text x="475" y="180" class="section">AtikRoCC</text>
+  <rect x="475" y="225" width="270" height="120" class="box"/>
+  <text x="505" y="273" class="label">Command</text>
+  <text x="530" y="308" class="label">Router</text>
+  <rect x="475" y="405" width="270" height="115" class="box"/>
+  <text x="515" y="475" class="label">AtikTop</text>
+  <rect x="475" y="590" width="270" height="135" class="box"/>
+  <text x="513" y="642" class="label">TileLink</text>
+  <text x="520" y="677" class="label">Adapter</text>
+  <path d="M 365 437 L 475 285" class="arrow"/>
+  <path d="M 365 598 L 475 658" class="arrow2"/>
+  <path d="M 610 345 L 610 405" class="arrow"/>
+  <path d="M 610 520 L 610 590" class="arrow2"/>
+
+  <!-- Atik core -->
+  <rect x="855" y="125" width="690" height="735" rx="0" fill="#ffffff" stroke="#262326" stroke-width="6"/>
+  <text x="1070" y="180" class="section">AtikCore</text>
+
+  <!-- Control cluster -->
+  <rect x="895" y="220" width="285" height="250" class="outer control"/>
+  <text x="925" y="268" class="section">Control</text>
+  <rect x="925" y="300" width="225" height="62" class="box"/>
+  <text x="952" y="341" class="small">AtikController</text>
+  <rect x="925" y="385" width="225" height="62" class="box"/>
+  <text x="953" y="426" class="small">DescriptorReader</text>
+
+  <!-- Operation controllers -->
+  <rect x="1220" y="220" width="280" height="250" class="outer control"/>
+  <text x="1250" y="268" class="section">Schedulers</text>
+  <rect x="1250" y="300" width="220" height="62" class="box"/>
+  <text x="1272" y="341" class="small">MatmulController</text>
+  <rect x="1250" y="385" width="220" height="62" class="box"/>
+  <text x="1262" y="426" class="small">AttentionController</text>
+
+  <!-- DMA and storage -->
+  <rect x="895" y="525" width="285" height="270" class="outer memory"/>
+  <text x="945" y="575" class="section">DMA</text>
+  <rect x="925" y="610" width="225" height="58" class="box"/>
+  <text x="969" y="648" class="small">DmaReader</text>
+  <rect x="925" y="700" width="225" height="58" class="box"/>
+  <text x="954" y="738" class="small">TileDma R/W</text>
+
+  <rect x="1220" y="525" width="280" height="270" class="outer attention"/>
+  <text x="1250" y="575" class="section">Tile State</text>
+  <rect x="1250" y="610" width="92" height="72" class="box"/>
+  <text x="1278" y="653" class="small">A/Q</text>
+  <rect x="1378" y="610" width="92" height="72" class="box"/>
+  <text x="1407" y="653" class="small">B/K</text>
+  <rect x="1250" y="715" width="92" height="55" class="dark-tile"/>
+  <text x="1284" y="750" class="tiletext">V</text>
+  <rect x="1378" y="715" width="92" height="55" class="dark-tile"/>
+  <text x="1405" y="750" class="tiletext">Out</text>
+
+  <!-- Compute region -->
+  <rect x="895" y="825" width="605" height="120" class="outer compute"/>
+  <text x="925" y="895" class="section">Shared Fixed-Point MAC Mesh</text>
+  <rect x="1365" y="850" width="40" height="40" class="red-cell"/>
+  <rect x="1420" y="850" width="40" height="40" class="red-cell"/>
+  <rect x="1365" y="900" width="40" height="40" class="red-cell"/>
+  <rect x="1420" y="900" width="40" height="40" class="red-cell"/>
+
+  <!-- Attention scalar subregion -->
+  <rect x="1188" y="485" width="312" height="28" fill="#fff0c8" stroke="#262326" stroke-width="3"/>
+  <text x="1215" y="506" class="tiny">scale / mask / online softmax / exp / recip / normalize</text>
+
+  <!-- Internal arrows -->
+  <path d="M 790 462 L 895 331" class="blue"/>
+  <text x="790" y="350" class="tiny">control pulses</text>
+  <path d="M 790 658 L 895 640" class="arrow2"/>
+  <text x="785" y="620" class="tiny">memory beats</text>
+
+  <path d="M 1150 331 L 1250 331" class="arrow"/>
+  <text x="1170" y="315" class="tiny">launch</text>
+  <path d="M 1037 447 L 1037 610" class="arrow"/>
+  <text x="1048" y="525" class="tiny">descriptor DMA</text>
+  <path d="M 1179 730 L 1250 646" class="arrow"/>
+  <path d="M 1179 730 L 1378 646" class="arrow"/>
+  <path d="M 1296 682 L 1110 825" class="gold"/>
+  <path d="M 1424 682 L 1215 825" class="gold"/>
+  <path d="M 1395 770 L 1395 825" class="gold"/>
+  <path d="M 1360 470 L 1360 485" class="arrow"/>
+  <path d="M 1360 513 L 1360 525" class="arrow"/>
+
+  <!-- Legend -->
+  <rect x="45" y="895" width="610" height="55" fill="#ffffff" stroke="#262326" stroke-width="3"/>
+  <text x="70" y="930" class="tiny">Arrows show architectural data/control flow. Diagram is hierarchical, not a complete RTL netlist.</text>
+</svg>

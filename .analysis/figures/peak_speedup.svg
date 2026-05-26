@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1220" height="650" viewBox="0 0 1220 650">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="610.0" y="40" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="27" font-weight="700">Peak Per-Case Speedup</text>
+<line x1="90" y1="80" x2="90" y2="525" stroke="#222" stroke-width="2"/>
+<line x1="90" y1="525" x2="1180" y2="525" stroke="#222" stroke-width="2"/>
+<line x1="84" y1="525.00" x2="1180" y2="525.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="530.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">0x</text>
+<line x1="84" y1="436.00" x2="1180" y2="436.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="441.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">51x</text>
+<line x1="84" y1="347.00" x2="1180" y2="347.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="352.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">101x</text>
+<line x1="84" y1="258.00" x2="1180" y2="258.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="263.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">152x</text>
+<line x1="84" y1="169.00" x2="1180" y2="169.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="174.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">202x</text>
+<line x1="84" y1="80.00" x2="1180" y2="80.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="85.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">253x</text>
+<line x1="90" y1="523.24" x2="1180" y2="523.24" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="8 6"/>
+<text x="1176" y="515.24" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13" fill="#8a8f98">RocketCore baseline 1x</text>
+<rect x="123.60" y="517.90" width="43.60" height="7.10" fill="#c9b6ff" stroke="#222" stroke-width="1"/>
+<text x="145.40" y="509.90" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">4.0x</text>
+<rect x="177.20" y="503.94" width="43.60" height="21.06" fill="#8f63dd" stroke="#222" stroke-width="1"/>
+<text x="199.00" y="495.94" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">12.0x</text>
+<rect x="230.80" y="469.60" width="43.60" height="55.40" fill="#4b238f" stroke="#222" stroke-width="1"/>
+<text x="252.60" y="461.60" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">31.5x</text>
+<text x="199.00" y="557" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15">Matmul</text>
+<rect x="341.60" y="492.47" width="43.60" height="32.53" fill="#c9b6ff" stroke="#222" stroke-width="1"/>
+<text x="363.40" y="484.47" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">18.5x</text>
+<rect x="395.20" y="417.76" width="43.60" height="107.24" fill="#8f63dd" stroke="#222" stroke-width="1"/>
+<text x="417.00" y="409.76" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">60.9x</text>
+<rect x="448.80" y="127.68" width="43.60" height="397.32" fill="#4b238f" stroke="#222" stroke-width="1"/>
+<text x="470.60" y="119.68" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">225.8x</text>
+<text x="417.00" y="557" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15">Attention</text>
+<rect x="559.60" y="510.19" width="43.60" height="14.81" fill="#c9b6ff" stroke="#222" stroke-width="1"/>
+<text x="581.40" y="502.19" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">8.4x</text>
+<rect x="613.20" y="481.13" width="43.60" height="43.87" fill="#8f63dd" stroke="#222" stroke-width="1"/>
+<text x="635.00" y="473.13" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">24.9x</text>
+<rect x="666.80" y="436.20" width="43.60" height="88.80" fill="#4b238f" stroke="#222" stroke-width="1"/>
+<text x="688.60" y="428.20" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">50.5x</text>
+<text x="635.00" y="557" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15">ViT Workload</text>
+<rect x="777.60" y="508.30" width="43.60" height="16.70" fill="#c9b6ff" stroke="#222" stroke-width="1"/>
+<text x="799.40" y="500.30" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">9.5x</text>
+<rect x="831.20" y="490.19" width="43.60" height="34.81" fill="#8f63dd" stroke="#222" stroke-width="1"/>
+<text x="853.00" y="482.19" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">19.8x</text>
+<rect x="884.80" y="356.03" width="43.60" height="168.97" fill="#4b238f" stroke="#222" stroke-width="1"/>
+<text x="906.60" y="348.03" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">96.0x</text>
+<text x="853.00" y="557" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15">TinyBERT Workload</text>
+<rect x="995.60" y="514.95" width="43.60" height="10.05" fill="#c9b6ff" stroke="#222" stroke-width="1"/>
+<text x="1017.40" y="506.95" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">5.7x</text>
+<rect x="1049.20" y="496.09" width="43.60" height="28.91" fill="#8f63dd" stroke="#222" stroke-width="1"/>
+<text x="1071.00" y="488.09" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">16.4x</text>
+<rect x="1102.80" y="461.06" width="43.60" height="63.94" fill="#4b238f" stroke="#222" stroke-width="1"/>
+<text x="1124.60" y="453.06" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="13" font-weight="700">36.3x</text>
+<text x="1071.00" y="557" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="15">GPT-2 Prefill Workload</text>
+<text x="635.0" y="626" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="600">Workload</text>
+<text x="24" y="302.5" transform="rotate(-90 24 302.5)" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="600">Best Observed Speedup vs RocketCore</text>
+<rect x="957" y="56" width="215" height="112" fill="#ffffff" stroke="#dddddd"/>
+<line x1="975" y1="80" x2="1009" y2="80" stroke="#8a8f98" stroke-width="3" stroke-dasharray="7 5"/>
+<text x="1020" y="85" font-family="Helvetica,Arial,sans-serif" font-size="14">RocketCore 1x</text>
+<rect x="975" y="97" width="34" height="14" fill="#c9b6ff" stroke="#222" stroke-width="1"/>
+<text x="1020" y="110" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 2x2</text>
+<rect x="975" y="122" width="34" height="14" fill="#8f63dd" stroke="#222" stroke-width="1"/>
+<text x="1020" y="135" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 4x4</text>
+<rect x="975" y="147" width="34" height="14" fill="#4b238f" stroke="#222" stroke-width="1"/>
+<text x="1020" y="160" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 8x8</text>
+</svg>

@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620" viewBox="0 0 1000 620">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="500.0" y="38" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="26" font-weight="700">Matmul Benchmark: Per-Case Speedup</text>
+<line x1="90" y1="75" x2="90" y2="465" stroke="#222" stroke-width="2"/>
+<line x1="90" y1="465" x2="960" y2="465" stroke="#222" stroke-width="2"/>
+<line x1="84" y1="465.00" x2="960" y2="465.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="470.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">0x</text>
+<line x1="84" y1="387.00" x2="960" y2="387.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="392.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">7x</text>
+<line x1="84" y1="309.00" x2="960" y2="309.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="314.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">14x</text>
+<line x1="84" y1="231.00" x2="960" y2="231.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="236.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">21x</text>
+<line x1="84" y1="153.00" x2="960" y2="153.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="158.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">28x</text>
+<line x1="84" y1="75.00" x2="960" y2="75.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="80.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">35x</text>
+<line x1="90" y1="453.94" x2="960" y2="453.94" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="8 6"/>
+<text x="956" y="445.94" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13" fill="#8a8f98">RocketCore baseline 1x</text>
+<polyline points="90.00,424.40 214.29,434.25 338.57,424.58 462.86,420.86 587.14,420.41 711.43,420.83 835.71,420.38 960.00,420.37" fill="none" stroke="#c9b6ff" stroke-width="3.5"/>
+<circle cx="90.00" cy="424.40" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="214.29" cy="434.25" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="338.57" cy="424.58" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="462.86" cy="420.86" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="587.14" cy="420.41" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="711.43" cy="420.83" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="835.71" cy="420.38" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="960.00" cy="420.37" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="90.00,422.61 214.29,411.86 338.57,363.84 462.86,342.52 587.14,334.58 711.43,336.37 835.71,333.29 960.00,332.62" fill="none" stroke="#8f63dd" stroke-width="3.5"/>
+<circle cx="90.00" cy="422.61" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="214.29" cy="411.86" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="338.57" cy="363.84" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="462.86" cy="342.52" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="587.14" cy="334.58" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="711.43" cy="336.37" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="835.71" cy="333.29" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="960.00" cy="332.62" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="90.00,422.61 214.29,411.86 338.57,272.59 462.86,179.02 587.14,129.70 711.43,145.16 835.71,123.90 960.00,116.79" fill="none" stroke="#4b238f" stroke-width="3.5"/>
+<circle cx="90.00" cy="422.61" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="214.29" cy="411.86" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="338.57" cy="272.59" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="462.86" cy="179.02" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="587.14" cy="129.70" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="711.43" cy="145.16" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="835.71" cy="123.90" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="960.00" cy="116.79" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<line x1="90.00" y1="465" x2="90.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="90.00" y="489" transform="rotate(-38 90.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">M2 N2 K2</text>
+<line x1="214.29" y1="465" x2="214.29" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="214.29" y="489" transform="rotate(-38 214.29 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">M4 N4 K4</text>
+<line x1="338.57" y1="465" x2="338.57" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="338.57" y="489" transform="rotate(-38 338.57 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">M8 N8 K8</text>
+<line x1="462.86" y1="465" x2="462.86" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="462.86" y="489" transform="rotate(-38 462.86 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">M16 N16 K16</text>
+<line x1="587.14" y1="465" x2="587.14" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="587.14" y="489" transform="rotate(-38 587.14 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">M32 N32 K32</text>
+<line x1="711.43" y1="465" x2="711.43" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="711.43" y="489" transform="rotate(-38 711.43 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">M16 N16 K64</text>
+<line x1="835.71" y1="465" x2="835.71" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="835.71" y="489" transform="rotate(-38 835.71 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">M64 N16 K64</text>
+<line x1="960.00" y1="465" x2="960.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="960.00" y="489" transform="rotate(-38 960.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">M64 N64 K64</text>
+<text x="525.0" y="598" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="600">Problem Size</text>
+<text x="24" y="270.0" transform="rotate(-90 24 270.0)" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="600">Speedup vs RocketCore</text>
+<rect x="717" y="44" width="235" height="112" fill="#ffffff" stroke="#dddddd"/>
+<line x1="735" y1="68" x2="769" y2="68" stroke="#8a8f98" stroke-width="3" stroke-dasharray="7 5"/>
+<text x="780" y="73" font-family="Helvetica,Arial,sans-serif" font-size="14">RocketCore 1x</text>
+<line x1="735" y1="93" x2="769" y2="93" stroke="#c9b6ff" stroke-width="4"/>
+<text x="780" y="98" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 2x2</text>
+<line x1="735" y1="118" x2="769" y2="118" stroke="#8f63dd" stroke-width="4"/>
+<text x="780" y="123" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 4x4</text>
+<line x1="735" y1="143" x2="769" y2="143" stroke="#4b238f" stroke-width="4"/>
+<text x="780" y="148" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 8x8</text>
+</svg>

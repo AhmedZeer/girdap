@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="620" viewBox="0 0 1000 620">
+<rect width="100%" height="100%" fill="#ffffff"/>
+<text x="500.0" y="38" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="26" font-weight="700">GPT-2 Prefill Workload: Per-Case Speedup</text>
+<line x1="90" y1="75" x2="90" y2="465" stroke="#222" stroke-width="2"/>
+<line x1="90" y1="465" x2="960" y2="465" stroke="#222" stroke-width="2"/>
+<line x1="84" y1="465.00" x2="960" y2="465.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="470.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">0x</text>
+<line x1="84" y1="387.00" x2="960" y2="387.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="392.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">8x</text>
+<line x1="84" y1="309.00" x2="960" y2="309.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="314.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">16x</text>
+<line x1="84" y1="231.00" x2="960" y2="231.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="236.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">24x</text>
+<line x1="84" y1="153.00" x2="960" y2="153.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="158.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">33x</text>
+<line x1="84" y1="75.00" x2="960" y2="75.00" stroke="#e7e7e7" stroke-width="1"/>
+<text x="78" y="80.00" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="14">41x</text>
+<line x1="90" y1="455.42" x2="960" y2="455.42" stroke="#8a8f98" stroke-width="2.5" stroke-dasharray="8 6"/>
+<text x="956" y="447.42" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13" fill="#8a8f98">RocketCore baseline 1x</text>
+<polyline points="90.00,428.13 380.00,424.01 670.00,412.95 960.00,410.28" fill="none" stroke="#c9b6ff" stroke-width="3.5"/>
+<circle cx="90.00" cy="428.13" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="380.00" cy="424.01" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="670.00" cy="412.95" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="960.00" cy="410.28" r="4.5" fill="#c9b6ff" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="90.00,393.28 380.00,379.96 670.00,330.13 960.00,307.54" fill="none" stroke="#8f63dd" stroke-width="3.5"/>
+<circle cx="90.00" cy="393.28" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="380.00" cy="379.96" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="670.00" cy="330.13" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="960.00" cy="307.54" r="4.5" fill="#8f63dd" stroke="#ffffff" stroke-width="1.5"/>
+<polyline points="90.00,351.68 380.00,327.39 670.00,191.41 960.00,116.79" fill="none" stroke="#4b238f" stroke-width="3.5"/>
+<circle cx="90.00" cy="351.68" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="380.00" cy="327.39" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="670.00" cy="191.41" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<circle cx="960.00" cy="116.79" r="4.5" fill="#4b238f" stroke="#ffffff" stroke-width="1.5"/>
+<line x1="90.00" y1="465" x2="90.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="90.00" y="489" transform="rotate(-25 90.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">S16 D64 H4 V128</text>
+<line x1="380.00" y1="465" x2="380.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="380.00" y="489" transform="rotate(-25 380.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">S32 D64 H4 V128</text>
+<line x1="670.00" y1="465" x2="670.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="670.00" y="489" transform="rotate(-25 670.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">S64 D128 H4 V256</text>
+<line x1="960.00" y1="465" x2="960.00" y2="471" stroke="#222" stroke-width="1.5"/>
+<text x="960.00" y="489" transform="rotate(-25 960.00 489)" text-anchor="end" font-family="Helvetica,Arial,sans-serif" font-size="13">S128 D128 H4 V256</text>
+<text x="525.0" y="598" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="600">Problem Size</text>
+<text x="24" y="270.0" transform="rotate(-90 24 270.0)" text-anchor="middle" font-family="Helvetica,Arial,sans-serif" font-size="18" font-weight="600">Speedup vs RocketCore</text>
+<rect x="717" y="44" width="235" height="112" fill="#ffffff" stroke="#dddddd"/>
+<line x1="735" y1="68" x2="769" y2="68" stroke="#8a8f98" stroke-width="3" stroke-dasharray="7 5"/>
+<text x="780" y="73" font-family="Helvetica,Arial,sans-serif" font-size="14">RocketCore 1x</text>
+<line x1="735" y1="93" x2="769" y2="93" stroke="#c9b6ff" stroke-width="4"/>
+<text x="780" y="98" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 2x2</text>
+<line x1="735" y1="118" x2="769" y2="118" stroke="#8f63dd" stroke-width="4"/>
+<text x="780" y="123" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 4x4</text>
+<line x1="735" y1="143" x2="769" y2="143" stroke="#4b238f" stroke-width="4"/>
+<text x="780" y="148" font-family="Helvetica,Arial,sans-serif" font-size="14">Atik 8x8</text>
+</svg>

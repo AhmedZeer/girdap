@@ -1,0 +1,113 @@
+flowchart LR
+  %% Atik architecture diagram source.
+  %% Render with:
+  %%   mmdc -i .diagrams/atik-architecture.mmd -o .diagrams/atik-architecture-mermaid.svg
+
+  classDef host fill:#f4f4f6,stroke:#262326,stroke-width:2px,color:#262326
+  classDef control fill:#dce8f5,stroke:#262326,stroke-width:2px,color:#262326
+  classDef memory fill:#d3dde4,stroke:#262326,stroke-width:2px,color:#262326
+  classDef compute fill:#d9a0b7,stroke:#262326,stroke-width:2px,color:#262326
+  classDef attention fill:#fff0c8,stroke:#262326,stroke-width:2px,color:#262326
+  classDef helper fill:#ffffff,stroke:#262326,stroke-width:1.5px,color:#262326
+
+  subgraph HOST["Rocket / Host"]
+    direction TB
+    CORE["Rocket Core"]:::host
+    ROCCCMD["RoCC command path"]:::host
+    TLHOST["TileLink memory path"]:::host
+    DRAM["Main memory"]:::host
+    CORE --> ROCCCMD
+    CORE <--> TLHOST
+    TLHOST <--> DRAM
+  end
+
+  subgraph ROCC["AtikRoCC"]
+    direction TB
+    ROUTER["AtikCommandRouter<br/>set_desc / run / status / counters"]:::control
+    TOP["AtikTop"]:::control
+    TLADAPT["TileLink adapter<br/>internal DMA beats to TileLink"]:::memory
+    ROUTER --> TOP
+    TOP <--> TLADAPT
+  end
+
+  subgraph COREBOX["AtikCore"]
+    direction TB
+
+    subgraph CTRL["Control"]
+      direction TB
+      ATIKCTRL["AtikController<br/>operation FSM"]:::control
+      DESC["DescriptorReader<br/>parse atik_desc_t"]:::control
+      STATUS["StatusRegs / CounterBank"]:::control
+      ATIKCTRL --> DESC
+      ATIKCTRL --> STATUS
+    end
+
+    subgraph SCHED["Operation schedulers"]
+      direction TB
+      MATMUL["MatmulController<br/>M/N/K tile loop"]:::control
+      ATTCTRL["AttentionController<br/>Q/V/K tile loop"]:::control
+      MATMUL -. mutually exclusive .- ATTCTRL
+    end
+
+    subgraph DMA["DMA"]
+      direction TB
+      DESCDMA["DmaReader<br/>descriptor fetch"]:::memory
+      TILEREAD["TileDmaReader<br/>row-major BF16 tile reads"]:::memory
+      TILEWRITE["TileDmaWriter<br/>BF16 tile writeback"]:::memory
+    end
+
+    subgraph TILESTATE["Local tile state"]
+      direction LR
+      AQ["A / Q tile SRAMs"]:::memory
+      BK["B / K tile SRAMs"]:::memory
+      VSTATE["V tile state"]:::memory
+      OUTSTATE["Output tile state"]:::memory
+    end
+
+    subgraph ATTN["Attention scalar region"]
+      direction LR
+      SCALE["scale"]:::attention
+      MASK["causal mask"]:::attention
+      SOFTMAX["online softmax<br/>row max / row sum"]:::attention
+      EXP["ExpLut"]:::attention
+      RECIP["ReciprocalLut"]:::attention
+      NORM["normalize"]:::attention
+      SCALE --> MASK --> SOFTMAX
+      SOFTMAX --> EXP
+      SOFTMAX --> RECIP --> NORM
+    end
+
+    subgraph MESHBOX["Shared compute"]
+      direction TB
+      BF16IN["Bf16ToFixed"]:::helper
+      MESH["MacMesh<br/>matmul C += A*B<br/>attention QK and PV"]:::compute
+      BF16OUT["FixedToBf16"]:::helper
+      BF16IN --> MESH --> BF16OUT
+    end
+
+    DESC <--> DESCDMA
+    ATIKCTRL --> MATMUL
+    ATIKCTRL --> ATTCTRL
+    MATMUL --> TILEREAD
+    ATTCTRL --> TILEREAD
+    MATMUL --> TILEWRITE
+    ATTCTRL --> TILEWRITE
+    TILEREAD --> AQ
+    TILEREAD --> BK
+    TILEREAD --> VSTATE
+    AQ --> BF16IN
+    BK --> BF16IN
+    VSTATE --> BF16IN
+    ATTCTRL --> ATTN
+    ATTN --> MESH
+    MESH --> OUTSTATE
+    BF16OUT --> OUTSTATE
+    OUTSTATE --> TILEWRITE
+  end
+
+  ROCCCMD --> ROUTER
+  TLADAPT <--> TLHOST
+  TOP --> ATIKCTRL
+  DESCDMA <--> TLADAPT
+  TILEREAD <--> TLADAPT
+  TILEWRITE <--> TLADAPT
